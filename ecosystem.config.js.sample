@@ -1,0 +1,48 @@
+// Ecosystem file sample for Linode deployment only. GCP uses .env files and secrets injected as environment variables in Cloud Run.
+module.exports = {
+  apps: [
+    {
+      name: "API V1 (Development)",
+      script: 'npm',
+      args: 'run dev',
+      cwd: "./",
+      watch: true,
+      ignore_watch: ["logs"],
+      instances: 1,
+      autorestart: true,
+      exp_backoff_restart_delay: 100,
+      max_memory_restart: '500M',
+      time: true,
+      // development mode
+      // pm2 start ecosystem.config.js --env development
+      env_development: {
+          MODE: "",
+          SERVER: "",
+          NODE_ENV: "",
+          API_VERSION_MAJOR: "v1",
+          API_VERSION_DETAILED: "0.0.0",
+          API_PORT: 0,
+          IMAGE_HOSTING_URL: "",
+          IMAGE_LOCAL_PATH: "",
+          DB_PORT: 0,
+          DB_HOST: "",
+          DB_USER: "",
+          DB_PASSWORD: "",
+          DB_NAME: "",
+          JWT_SECRET_KEY: "",
+          JWT_ALGORITHM: "",
+          JWT_VALIDITY_MS: 0,
+          JWT_ADMIN_VALIDITY_MS: 0,
+      },
+      // production mode
+      // pm2 start ecosystem.config.js --env production
+      env_production: {
+        HOST: '0.0.0.0',
+        PORT: 0,
+        NODE_ENV: 'production',
+      },
+      output: './logs/console.log',
+      error: './logs/consoleError.log',
+    },
+  ],
+};

@@ -1,0 +1,47 @@
+# compiled output
+dist/
+
+# code formatter
+.eslintrc
+.eslintignore
+.editorconfig
+.huskyrc
+.lintstagedrc.json
+.prettierrc
+
+# test
+jest.config.js
+src/__tests__
+
+# docker
+Dockerfile
+docker-compose.yml
+docker_configs
+.dockerignore
+
+# git
+.git
+.githooks/
+.github/
+.gitignore
+.gitmodules
+
+# not needed to build the app
+.DS_Store
+*key.json
+CHANGELOG.md
+Documentation/
+logs/
+Makefile
+node_modules/
+Patches/
+pull_request_template.md
+README.md
+Scripts/
+nodemon.json
+
+# misc
+.vscode
+
+# keys
+*key.json
