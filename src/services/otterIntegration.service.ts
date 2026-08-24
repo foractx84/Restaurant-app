@@ -2,18 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Job, PgBoss } from 'pg-boss';
 import { EntityManager } from 'typeorm';
 import { AxiosInstance } from 'axios';
-import {
-  createOtterClient,
-  exchangeOtterAuthCode,
-  fetchOtterMenu,
-  getOtterMenuJobStatus,
-  getOtterStore,
-  notifyOtterPauseStoreResult,
-  notifyOtterStoreAvailability,
-  notifyOtterUnpauseStoreResult,
-  notifyOtterStoreHours,
-  upsertOtterMenu,
-} from '@/api/otter.api';
+import { createOtterClient, exchangeOtterAuthCode, fetchOtterMenu, getOtterMenuJobStatus, getOtterStore, upsertOtterMenu } from '@/api/otter.api';
 import { getErrorPayload, HttpException, InternalErrorCode } from '@exceptions/HttpException';
 import {
   OtterMenuPushResult,
@@ -32,10 +21,7 @@ import { MenusModelsInterface, MenusServiceInterface } from '@interfaces/menus.i
 import { MenuHoursServiceInterface } from '@interfaces/menuHours.interface';
 import { ModifierGroupModelInterface } from '@interfaces/modifierGroup.interface';
 import { mapOtterOrgStoreToRestaurant, validateOtterOrgStore } from '@utils/otterStore.mapper';
-import {
-  isOtterMenuUpdateEvent,
-  isOtterStorefrontEvent,
-} from '@utils/otterWebhookEvent.util';
+import { isOtterMenuUpdateEvent } from '@utils/otterWebhookEvent.util';
 import { normalizeOtterMenus, stringifyNormalizedMenus } from '@utils/normalize';
 import { buildOtterMenusUpsertRequest, OtterMenuPushInput, OtterModifierGroupSelectionRules } from '@utils/denormalizeOtterMenu';
 import { generateHash } from '@utils/hashUtils';
@@ -43,21 +29,17 @@ import { acquireAdvisoryLock } from '@utils/advisoryLock';
 import { ormConnection } from '@utils/dbUtils';
 import { pool } from '@databases';
 import { getBoss } from '@queue';
-import { OTTER_STOREFRONT_EVENT } from '@constants/otter.constants';
 import { QUEUES } from '@constants/queues.constants';
 import { EXTERNAL_PARTY } from '@constants/externalParty.constants';
 import { MenuSyncProcessor } from '@menu-sync/processor/menu-sync.processor';
 import { buildMenuSyncContext } from '@menu-sync/context-factory';
 import { logger } from '@utils/logger';
-import { RestaurantHoursEntity } from '@entities/restaurantHours.entity';
-import { OtterStoreRegularHours } from '@interfaces/otter.interface';
 
 const MENU_PUSH_JOB_POLL_ATTEMPTS = 5;
 const MENU_PUSH_JOB_POLL_INTERVAL_MS = 1000;
 
 const OTTER_PLATFORM = 'otter';
 const EMPTY_TOKEN = '';
-const DEFAULT_STORE_TIMEZONE = 'America/New_York';
 
 /**
  * Otter organization onboarding (authorization-code + store connection), the menu-sync engine
@@ -111,13 +93,8 @@ class OtterIntegrationService implements OtterIntegrationServiceInterface {
       return;
     }
 
-    if (isOtterStorefrontEvent(event)) {
-      await this.handleOtterStorefrontWebhook(event);
-      return;
-    }
-
     if (!isOtterMenuUpdateEvent(event)) {
-      logger.debug(`Received Otter webhook eventType=${eventType} eventId=${eventId}; unsupported event, acknowledged only.`);
+      logger.debug(`Received Otter webhook eventType=${eventType} eventId=${eventId}; not a menu-update event, acknowledged only.`);
       return;
     }
 
@@ -154,96 +131,6 @@ class OtterIntegrationService implements OtterIntegrationServiceInterface {
     await this.enqueueMenuSync(restaurantID, integration.otterLocationID, uuidv4());
     logger.info(`Enqueued Otter menu sync for restaurant ${restaurantID} (store ${integration.otterLocationID}) via manual trigger.`);
     return { enqueued: true };
-  };
-
-  updateStorefrontAvailability = async (
-    restaurantID: number,
-    isAcceptingOrders: boolean,
-  ): Promise<{
-    isAcceptingOrders: boolean;
-    storeState: 'OPEN' | 'OPERATOR_PAUSED';
-  }> => {
-    const integration =
-      await this.platformIntegrationService.getPlatformIntegrationByRestaurantIDAndPlatform(
-        restaurantID,
-        OTTER_PLATFORM,
-      );
-
-    if (!integration?.otterLocationID) {
-      throw new HttpException(
-        404,
-        getErrorPayload(
-          InternalErrorCode.inputValueNotInDB,
-          `Restaurant ${restaurantID} has no connected Otter store.`,
-        ),
-      );
-    }
-
-    const restaurant =
-      await this.restaurantService.findRestaurantEntityByID(restaurantID);
-
-    const previousIsAcceptingOrders =
-      restaurant.is_accepting_orders !== false;
-
-    const storeState: 'OPEN' | 'OPERATOR_PAUSED' =
-      isAcceptingOrders ? 'OPEN' : 'OPERATOR_PAUSED';
-
-    const statusChangedAt = new Date().toISOString();
-    const eventId = uuidv4();
-
-    // Update TapTab first.
-    await this.restaurantService.updateRestaurantEntity(
-      {
-        is_accepting_orders: isAcceptingOrders,
-      },
-      restaurantID,
-    );
-
-    try {
-      const client = createOtterClient({
-        authService: this.otterAuthService,
-        storeId: integration.otterLocationID,
-      });
-
-      await notifyOtterStoreAvailability(
-        client,
-        eventId,
-        {
-          storeState,
-          statusChangedAt,
-          eventResultMetadata: {
-            operationStatus: 'SUCCEEDED',
-            operationFinishedAt: new Date().toISOString(),
-          },
-        },
-      );
-    } catch (err) {
-      // Otter update failed. Restore TapTab to its previous state so
-      // TapTab and Otter do not intentionally remain inconsistent.
-      try {
-        await this.restaurantService.updateRestaurantEntity(
-          {
-            is_accepting_orders: previousIsAcceptingOrders,
-          },
-          restaurantID,
-        );
-      } catch (rollbackErr) {
-        logger.error(
-          `Failed to roll back Storefront availability for restaurant ${restaurantID}: ${rollbackErr}`,
-        );
-      }
-
-      throw err;
-    }
-
-    logger.info(
-      `Updated Storefront availability for restaurant ${restaurantID} to ${storeState}.`,
-    );
-
-    return {
-      isAcceptingOrders,
-      storeState,
-    };
   };
 
   /**
@@ -403,222 +290,6 @@ class OtterIntegrationService implements OtterIntegrationServiceInterface {
       status = job.jobReference.status;
     }
     return status;
-  };
-
-  private handleOtterStorefrontWebhook = async (event: OtterWebhookEvent): Promise<void> => {
-    const storeId = event.metadata?.storeId;
-    const eventId = event.eventId;
-
-    if (!storeId) {
-      logger.warn(`Received Otter Storefront webhook eventType=${event.eventType} eventId=${eventId} with no storeId.`);
-      return;
-    }
-
-    const integration =
-      await this.platformIntegrationService.getPlatformIntegrationByStoreIDAndPlatform(
-        storeId,
-        OTTER_PLATFORM,
-      );
-
-    if (!integration?.restaurantID) {
-      logger.warn(`Received Otter Storefront webhook for unconnected store ${storeId}.`);
-      return;
-    }
-
-    switch (event.eventType) {
-      case OTTER_STOREFRONT_EVENT.PAUSE_STORE:
-        await this.handleOtterPauseStore(
-          integration.restaurantID,
-          storeId,
-          event,
-        );
-        return;
-
-      case OTTER_STOREFRONT_EVENT.UNPAUSE_STORE:
-        await this.handleOtterUnpauseStore(
-          integration.restaurantID,
-          storeId,
-          event,
-        );
-        return;
-
-      case OTTER_STOREFRONT_EVENT.GET_STORE_AVAILABILITY:
-        await this.handleOtterGetStoreAvailability(
-          integration.restaurantID,
-          storeId,
-          event,
-        );
-        return;
-
-      case OTTER_STOREFRONT_EVENT.GET_STORE_HOURS:
-        await this.handleOtterGetStoreHours(
-          integration.restaurantID,
-          storeId,
-          event,
-        );
-        return;
-
-      default:
-        return;
-    }
-  };
-
-  private handleOtterPauseStore = async (
-    restaurantID: number,
-    otterStoreId: string,
-    event: OtterWebhookEvent,
-  ): Promise<void> => {
-    await this.restaurantService.updateRestaurantEntity(
-      { is_accepting_orders: false },
-      restaurantID,
-    );
-
-    const client = createOtterClient({
-      authService: this.otterAuthService,
-      storeId: otterStoreId,
-    });
-
-    await notifyOtterPauseStoreResult(client, event.eventId, {
-      closureId: event.metadata?.resourceId ?? event.eventId,
-      eventResultMetadata: {
-        operationStatus: 'SUCCEEDED',
-        operationFinishedAt: new Date().toISOString(),
-      },
-    });
-
-    logger.info(`Paused restaurant ${restaurantID} from Otter Storefront event ${event.eventId}.`);
-  };
-
-  private handleOtterUnpauseStore = async (
-    restaurantID: number,
-    otterStoreId: string,
-    event: OtterWebhookEvent,
-  ): Promise<void> => {
-    await this.restaurantService.updateRestaurantEntity(
-      { is_accepting_orders: true },
-      restaurantID,
-    );
-
-    const client = createOtterClient({
-      authService: this.otterAuthService,
-      storeId: otterStoreId,
-    });
-
-    await notifyOtterUnpauseStoreResult(client, event.eventId, {
-      eventResultMetadata: {
-        operationStatus: 'SUCCEEDED',
-        operationFinishedAt: new Date().toISOString(),
-      },
-    });
-
-    logger.info(`Unpaused restaurant ${restaurantID} from Otter Storefront event ${event.eventId}.`);
-  };
-
-  private handleOtterGetStoreAvailability = async (
-    restaurantID: number,
-    otterStoreId: string,
-    event: OtterWebhookEvent,
-  ): Promise<void> => {
-    const restaurant =
-      await this.restaurantService.findRestaurantEntityByID(restaurantID);
-
-    const client = createOtterClient({
-      authService: this.otterAuthService,
-      storeId: otterStoreId,
-    });
-
-    await notifyOtterStoreAvailability(client, event.eventId, {
-      storeState:
-        restaurant.is_accepting_orders === false
-          ? 'OPERATOR_PAUSED'
-          : 'OPEN',
-      statusChangedAt: null,
-      eventResultMetadata: {
-        operationStatus: 'SUCCEEDED',
-        operationFinishedAt: new Date().toISOString(),
-      },
-    });
-
-    logger.info(`Reported Storefront availability for restaurant ${restaurantID} to Otter.`);
-  };
-
-  private handleOtterGetStoreHours = async (
-    restaurantID: number,
-    otterStoreId: string,
-    event: OtterWebhookEvent,
-  ): Promise<void> => {
-    // Must load the `hours` + `restaurant_address` relations explicitly -- `findRestaurantEntityByID`
-    // only loads `menus`, which would silently report empty hours and the fallback timezone.
-    const restaurant =
-      await this.restaurantService.findRestaurantEntityWithHoursAndAddressByID(
-        restaurantID,
-      );
-
-    if (!restaurant) {
-      logger.error(
-        `Cannot report Storefront hours: restaurant ${restaurantID} mapped from Otter store ${otterStoreId} was not found.`,
-      );
-      return;
-    }
-
-    const regularHours = this.mapRestaurantHoursToOtter(
-      restaurant.hours ?? [],
-    );
-
-    const timezone =
-      restaurant.restaurant_address?.timezone ?? DEFAULT_STORE_TIMEZONE;
-
-    const client = createOtterClient({
-      authService: this.otterAuthService,
-      storeId: otterStoreId,
-    });
-
-    await notifyOtterStoreHours(client, event.eventId, {
-      storeHoursConfiguration: {
-        deliveryHours: {
-          regularHours,
-          specialHours: [],
-        },
-        pickupHours: {
-          regularHours,
-          specialHours: [],
-        },
-        timezone,
-      },
-      statusChangedAt: null,
-      eventResultMetadata: {
-        operationStatus: 'SUCCEEDED',
-        operationFinishedAt: new Date().toISOString(),
-      },
-    });
-
-    logger.info(
-      `Reported Storefront hours for restaurant ${restaurantID} to Otter.`,
-    );
-  };
-
-  private mapRestaurantHoursToOtter = (
-    hours: RestaurantHoursEntity[],
-  ): OtterStoreRegularHours[] => {
-    const grouped = new Map<string, OtterStoreRegularHours>();
-
-    for (const hour of hours ?? []) {
-      const dayOfWeek = String(hour.day).toUpperCase() as OtterStoreRegularHours['dayOfWeek'];
-
-      if (!grouped.has(dayOfWeek)) {
-        grouped.set(dayOfWeek, {
-          dayOfWeek,
-          timeRanges: [],
-        });
-      }
-
-      grouped.get(dayOfWeek)?.timeRanges.push({
-        startTime: hour.start,
-        endTime: hour.end,
-      });
-    }
-
-    return Array.from(grouped.values());
   };
 
   handleOAuthWithAuthCode = async (authCode: string, brandId?: string, otterStoreId?: string): Promise<OtterOAuthCallbackResult> => {

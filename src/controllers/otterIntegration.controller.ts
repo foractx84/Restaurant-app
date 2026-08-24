@@ -2,12 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { OTTER } from '@configs/config';
 import { buildOtterAuthorizeUrl } from '@/api/otter.api';
-import {
-  OtterIntegrationControllerInterface,
-  OtterIntegrationServiceInterface,
-  OtterWebhookEvent,
-  UpdateOtterStorefrontAvailabilityRequest,
-} from '@interfaces/otterIntegration.interface';
+import { OtterIntegrationControllerInterface, OtterIntegrationServiceInterface, OtterWebhookEvent } from '@interfaces/otterIntegration.interface';
 import { computeOtterWebhookHmac, validateOtterWebhookHmac } from '@utils/otterWebhookAuth.util';
 import { logger } from '@utils/logger';
 
@@ -67,6 +62,11 @@ class OtterIntegrationController implements OtterIntegrationControllerInterface 
    * OAuth authorization-code callback for organization onboarding.
    * Query: `code` (required). Optional store selection via `brandId` + `storeId`, or Otter `state`
    * formatted as `brandId:storeId` (used when re-authorizing after the client picks from a multi-store list).
+   *
+   * When {@link OTTER.MANAGER_FRONTEND_URL} is configured, redirects the browser back into the
+   * Settings/Account page rather than rendering raw JSON: `?otterConnected=1` on success, or
+   * `?otterSelectStores=<base64url JSON>` when the org has multiple stores and the frontend needs to
+   * show a picker (the picker then re-hits `authorize` with `state=brandId:storeId` to complete it).
    */
   oAuthCallback = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
@@ -87,7 +87,25 @@ class OtterIntegrationController implements OtterIntegrationControllerInterface 
       }
 
       const result = await this.otterIntegrationService.handleOAuthWithAuthCode(code, brandId, storeId);
-      res.status(200).json(result);
+
+      if (!OTTER.MANAGER_FRONTEND_URL) {
+        res.status(200).json(result);
+        return;
+      }
+
+      if (result.connected) {
+        res.redirect(`${OTTER.MANAGER_FRONTEND_URL}/settings/account?otterConnected=1`);
+        return;
+      }
+
+      const stores = (result.selectableStores ?? []).map(({ brandId: id, brandName, store }) => ({
+        brandId: id,
+        brandName,
+        storeId: store.id,
+        storeName: store.name,
+      }));
+      const encodedStores = Buffer.from(JSON.stringify(stores)).toString('base64url');
+      res.redirect(`${OTTER.MANAGER_FRONTEND_URL}/settings/account?otterSelectStores=${encodedStores}`);
     } catch (err) {
       next(err);
     }
@@ -116,33 +134,6 @@ class OtterIntegrationController implements OtterIntegrationControllerInterface 
       const restaurantID = parseInt(res.locals.restaurantID, 10);
       const result = await this.otterIntegrationService.pushMenuToOtter(restaurantID);
       res.status(202).json(result);
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  updateStorefrontAvailability = async (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ): Promise<void> => {
-    try {
-      const restaurantID = parseInt(
-        res.locals.restaurantID,
-        10,
-      );
-
-      const {
-        isAcceptingOrders,
-      } = req.body as UpdateOtterStorefrontAvailabilityRequest;
-
-      const result =
-        await this.otterIntegrationService.updateStorefrontAvailability(
-          restaurantID,
-          isAcceptingOrders,
-        );
-
-      res.status(200).json(result);
     } catch (err) {
       next(err);
     }

@@ -17,7 +17,6 @@ import {
   GetRestaurantDetailResponse,
   GetRestaurantResponse,
   RestaurantCurrencyInterface,
-  RestaurantReservationOrderingLinksInterface,
 } from '@interfaces/restaurants.interface';
 import { ManagerPackageEntity } from '@/entities/managerPackage.entity';
 import { PackageEntity } from '@/entities/packageEntity.entity';
@@ -1442,119 +1441,7 @@ describe('restaurant API', () => {
       await removeCreatedManagerPackage(NEXT_MANAGER_PACKAGE_ID);
     });
   });
-  describe('PUT /restaurant/urls', () => {
-    const restaurantOrderingAndReservationLinks: RestaurantReservationOrderingLinksInterface = {
-      orderingUrl: 'https://ordering.com',
-      reservationUrl: 'https://ordering.com',
-    };
-    const restaurantOrderingAndReservationLinksEmpty: RestaurantReservationOrderingLinksInterface = {
-      orderingUrl: '',
-      reservationUrl: '',
-    };
-    it('should successfully update ordering and reservation urls for restaurant', async () => {
-      mockVerify();
 
-      const res = await request(app.getServer())
-        .post('/restaurant')
-        .set('Authorization', 'token')
-        .send(buildCreateRestaurantRequest({ hasLatAndLong: false, country: 'France', cuisineID: 1 }))
-        .expect(200);
-
-      await request(app.getServer())
-        .put('/restaurant/urls')
-        .set('Authorization', 'token')
-        .set('restaurantID', res.body.restaurantID)
-        .send(restaurantOrderingAndReservationLinks)
-        .expect(200);
-
-      await removeCreatedRestaurant(res.body.restaurantID, false);
-    });
-    it('should successfully update ordering and reservation urls for restaurant if restaurant links are empty strings', async () => {
-      mockVerify();
-
-      const res = await request(app.getServer())
-        .post('/restaurant')
-        .set('Authorization', 'token')
-        .send(buildCreateRestaurantRequest({ hasLatAndLong: false, country: 'France', cuisineID: 1 }))
-        .expect(200);
-
-      await request(app.getServer())
-        .put('/restaurant/urls')
-        .set('Authorization', 'token')
-        .set('restaurantID', res.body.restaurantID)
-        .send(restaurantOrderingAndReservationLinksEmpty)
-        .expect(200);
-
-      await removeCreatedRestaurant(res.body.restaurantID, false);
-    });
-    it('should successfully update ordering url for restaurant', async () => {
-      mockVerify();
-
-      const res = await request(app.getServer())
-        .post('/restaurant')
-        .set('Authorization', 'token')
-        .send(buildCreateRestaurantRequest({ hasLatAndLong: false, country: 'France', cuisineID: 1 }))
-        .expect(200);
-
-      const restaurantOrderingLink = {
-        orderingUrl: 'https://ordering.com',
-      };
-
-      await request(app.getServer())
-        .put('/restaurant/urls')
-        .set('Authorization', 'token')
-        .set('restaurantID', res.body.restaurantID)
-        .send(restaurantOrderingLink)
-        .expect(200);
-
-      await removeCreatedRestaurant(res.body.restaurantID, false);
-    });
-    it('should successfully update reservation url for restaurant', async () => {
-      mockVerify();
-
-      const res = await request(app.getServer())
-        .post('/restaurant')
-        .set('Authorization', 'token')
-        .send(buildCreateRestaurantRequest({ hasLatAndLong: false, country: 'France', cuisineID: 1 }))
-        .expect(200);
-
-      const restaurantReservationLink = {
-        reservationUrl: 'https://reservation.com',
-      };
-
-      await request(app.getServer())
-        .put('/restaurant/urls')
-        .set('Authorization', 'token')
-        .set('restaurantID', res.body.restaurantID)
-        .send(restaurantReservationLink)
-        .expect(200);
-
-      await removeCreatedRestaurant(res.body.restaurantID, false);
-    });
-    it('should throw 400 if restaurant ordering and reservation urls are not strings', async () => {
-      mockVerify();
-
-      const res = await request(app.getServer())
-        .post('/restaurant')
-        .set('Authorization', 'token')
-        .send(buildCreateRestaurantRequest({ hasLatAndLong: false, country: 'France', cuisineID: 1 }))
-        .expect(200);
-
-      const badRequest = {
-        reservationUrl: 1,
-        orderingUrl: 2,
-      };
-
-      await request(app.getServer())
-        .put('/restaurant/urls')
-        .set('Authorization', 'token')
-        .set('restaurantID', res.body.restaurantID)
-        .send(badRequest)
-        .expect(400);
-
-      await removeCreatedRestaurant(res.body.restaurantID, false);
-    });
-  });
   describe('GET /restaurants/:restaurantUrlID', () => {
     const assertGetRestaurantDetailsResponse = (restaurants: GetRestaurantDetailResponse[]) => {
       restaurants.forEach(restaurant => {

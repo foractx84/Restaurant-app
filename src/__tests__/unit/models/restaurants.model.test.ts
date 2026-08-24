@@ -346,41 +346,6 @@ describe('restaurantsModel', () => {
       expect(result).toEqual(RESTAURANT);
     });
   });
-  describe('getRestaurantEntityWithHoursAndAddressByID', () => {
-    it('should join the hours and address relations and return the restaurant entity', async () => {
-      const RESTAURANT_ID = 1012;
-      const RESTAURANT = {
-        restaurant_id: RESTAURANT_ID,
-        name: 'Hours Restaurant',
-        hours: [{ day: 'Monday', start: '07:00', end: '17:00' }],
-        restaurant_address: { timezone: 'America/New_York' },
-      };
-
-      const getOne = jest.fn();
-      const where = jest.fn(() => ({ getOne }));
-      const leftJoinAndSelectAddress = jest.fn(() => ({ where }));
-      const leftJoinAndSelectHours = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelectAddress }));
-      const createQueryBuilder: any = jest.fn(() => ({
-        leftJoinAndSelect: leftJoinAndSelectHours,
-      }));
-
-      const REPOSITORY: any = {
-        createQueryBuilder,
-      };
-      (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({
-        getRepository: () => REPOSITORY,
-      });
-      (getOne as jest.MockedFunction<any>).mockResolvedValueOnce(RESTAURANT as unknown as RestaurantEntity);
-
-      const result = await restaurantsModel.getRestaurantEntityWithHoursAndAddressByID(RESTAURANT_ID);
-
-      expect(leftJoinAndSelectHours).toHaveBeenCalledWith('restaurant.hours', 'hours');
-      expect(leftJoinAndSelectAddress).toHaveBeenCalledWith('restaurant.restaurant_address', 'restaurant_address');
-      expect(where).toHaveBeenCalledWith('restaurant.restaurant_id = :restaurantID', { restaurantID: RESTAURANT_ID });
-      expect(getOne).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(RESTAURANT);
-    });
-  });
   describe('getRestaurantsEntityByManagerID', () => {
     const MANAGER_ID = 1000;
     it('should get restaurant entities by manager id successfully for non superuser', async () => {
@@ -643,55 +608,103 @@ describe('restaurantsModel', () => {
   });
   describe('getRestaurantDetailsEntityByRestaurantID', () => {
     const RESTAURANT_ID = 1;
-    it('should get restaurant entity by restaurantID successfully', async () => {
-      const getRepository = jest.fn();
-      const getOne = jest.fn();
-      const orderBy = jest.fn(() => ({ getOne }));
-      const leftJoinAndSelect15 = jest.fn(() => ({ orderBy }));
-      const leftJoinAndSelect14 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect15 }));
-      const leftJoinAndSelect13 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect14 }));
-      const leftJoinAndSelect12 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect13 }));
-      const leftJoinAndSelect11 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect12 }));
-      const leftJoinAndSelect10 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect11 }));
-      const leftJoinAndSelect9 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect10 }));
-      const leftJoinAndSelect8 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect9 }));
-      const leftJoinAndSelect7 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect8 }));
-      const leftJoinAndSelect6 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect7 }));
-      const leftJoinAndSelect5 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect6 }));
-      const leftJoinAndSelect4 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect5 }));
-      const leftJoinAndSelect3 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect4 }));
-      const leftJoinAndSelect2 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect3 }));
-      const leftJoinAndSelect1 = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect2 }));
-      const andWhere = jest.fn(() => ({ leftJoinAndSelect: leftJoinAndSelect1 }));
-      const where = jest.fn(() => ({ andWhere }));
-      const createQueryBuilder: any = jest.fn(() => ({
-        where,
-      }));
 
-      const REPOSITORY: any = {
-        createQueryBuilder,
+    it('should get restaurant entity by restaurantID successfully', async () => {
+      const getOne = jest.fn().mockResolvedValueOnce(RESTAURANT_DETAILS);
+
+      const queryBuilder: any = {
+        where: jest.fn(),
+        andWhere: jest.fn(),
+        leftJoinAndSelect: jest.fn(),
+        orderBy: jest.fn(),
+        getOne,
+      };
+
+      // Every QueryBuilder method returns the same QueryBuilder,
+      // allowing any number of chained joins.
+      queryBuilder.where.mockReturnValue(queryBuilder);
+      queryBuilder.andWhere.mockReturnValue(queryBuilder);
+      queryBuilder.leftJoinAndSelect.mockReturnValue(queryBuilder);
+      queryBuilder.orderBy.mockReturnValue(queryBuilder);
+
+      const repository: any = {
+        createQueryBuilder: jest.fn().mockReturnValue(queryBuilder),
       };
 
       (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({
-        getRepository: () => REPOSITORY,
+        getRepository: jest.fn().mockReturnValue(repository),
       });
-      getRepository.mockImplementation(() => createQueryBuilder);
-      (getOne as jest.MockedFunction<any>).mockResolvedValueOnce(RESTAURANT_DETAILS);
 
       const result = await restaurantsModel.getRestaurantDetailsEntityByRestaurantID(RESTAURANT_ID);
+
+      expect(repository.createQueryBuilder).toHaveBeenCalledWith('restaurants');
+
+      expect(queryBuilder.where).toHaveBeenCalledWith('restaurants.deleted = :deleted', {
+        deleted: false,
+      });
+
+      expect(queryBuilder.andWhere).toHaveBeenCalledWith('restaurants.restaurant_id = :restaurantID', {
+        restaurantID: RESTAURANT_ID,
+      });
+
+      // TAB-464 Brand relations
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.brand', 'brand');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('brand.cuisine', 'brandCuisine');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('brand.socials', 'brandSocials');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.restaurant_address', 'address');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('address.country_id', 'country');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.images', 'images', 'images.deleted IS NULL OR images.deleted = false');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('images.restaurant_image_type_id', 'imageType');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.menus', 'menu', 'menu.deleted IS NULL OR menu.deleted = false');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+        'menu.sections',
+        'menuSections',
+        'menuSections.deleted IS NULL OR menuSections.deleted = false',
+      );
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.restaurant_menu_layouts', 'restaurantMenuLayouts');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurantMenuLayouts.menu_layout_id', 'menuLayout');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.hours', 'hours');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.profilePages', 'pages', 'pages.deleted_at IS NULL');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('restaurants.restaurant_profile_albums', 'albums', 'albums.deleted_at IS NULL');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('albums.restaurant_profile_album_media', 'gallery', 'gallery.deleted_at IS NULL');
+
+      expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith('gallery.media', 'media');
+
+      expect(queryBuilder.orderBy).toHaveBeenCalledWith({
+        'restaurants.name': 'ASC',
+        'menu.list_order': 'ASC',
+        'menuSections.list_order': 'ASC',
+        'albums.list_order': 'ASC',
+        'gallery.list_order': 'ASC',
+      });
 
       expect(getOne).toHaveBeenCalledTimes(1);
       expect(result).toEqual(RESTAURANT_DETAILS);
     });
+
     it('should throw a HttpException if any error occurs while getting restaurant details', async () => {
-      const createQueryBuilder = jest.fn().mockImplementation(() => {
-        throw new Error();
-      });
-      const REPOSITORY: any = {
-        createQueryBuilder,
+      const repository: any = {
+        createQueryBuilder: jest.fn().mockImplementation(() => {
+          throw new Error('database failure');
+        }),
       };
+
       (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({
-        getRepository: () => REPOSITORY,
+        getRepository: jest.fn().mockReturnValue(repository),
       });
 
       try {
@@ -700,6 +713,8 @@ describe('restaurantsModel', () => {
         expect(err.status).toEqual(500);
         expect(err.payload instanceof HttpException);
       }
+
+      expect(repository.createQueryBuilder).toHaveBeenCalledTimes(1);
     });
   });
 });

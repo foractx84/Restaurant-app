@@ -9,12 +9,8 @@ import {
   OtterOrganization,
   OtterOrgStore,
   OtterPaginated,
-  OtterPauseStoreResultRequest,
-  OtterStoreAvailabilityRequest,
-  OtterStoreHoursRequest,
   OtterStoreConnection,
   OtterTokenResponse,
-  OtterUnpauseStoreResultRequest,
 } from '@interfaces/otter.interface';
 import { logger } from '@utils/logger';
 
@@ -320,58 +316,6 @@ export async function upsertOtterMenu(client: AxiosInstance, request: OtterMenus
 export async function getOtterMenuJobStatus(client: AxiosInstance, jobId: string): Promise<OtterMenuAsynchronousJob> {
   const { data } = (await client.get<OtterMenuAsynchronousJob>(`/v1/menus/jobs/${jobId}`)) as AxiosResponse<OtterMenuAsynchronousJob>;
   return data;
-}
-
-export async function notifyOtterStoreAvailability(
-  client: AxiosInstance,
-  eventId: string,
-  request: OtterStoreAvailabilityRequest,
-): Promise<void> {
-  await client.post('/v1/storefront/availability', request, {
-    headers: {
-      'X-Event-Id': eventId,
-    },
-  });
-}
-
-export async function notifyOtterPauseStoreResult(
-  client: AxiosInstance,
-  eventId: string,
-  request: OtterPauseStoreResultRequest,
-): Promise<void> {
-  await client.post('/v1/storefront/pause', request, {
-    headers: {
-      'X-Event-Id': eventId,
-    },
-  });
-}
-
-export async function notifyOtterUnpauseStoreResult(
-  client: AxiosInstance,
-  eventId: string,
-  request: OtterUnpauseStoreResultRequest,
-): Promise<void> {
-  await client.post('/v1/storefront/unpause', request, {
-    headers: {
-      'X-Event-Id': eventId,
-    },
-  });
-}
-
-/**
- * Reports the store's current operating-hours configuration to Otter.
- * Used in response to `storefront.get_store_hours`.
- */
-export async function notifyOtterStoreHours(
-  client: AxiosInstance,
-  eventId: string,
-  request: OtterStoreHoursRequest,
-): Promise<void> {
-  await client.post('/v1/storefront/hours', request, {
-    headers: {
-      'X-Event-Id': eventId,
-    },
-  });
 }
 
 function enrichOtterError(error: unknown): Error {

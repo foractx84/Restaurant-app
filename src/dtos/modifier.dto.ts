@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsNumberString, IsOptional, IsPositive, IsString, Min, MinLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsNumberString, IsOptional, IsPositive, IsString, Min, MinLength } from 'class-validator';
 import { CreateModifierRequestInterface, DeleteModifierRequestInterface, EditModifierRequestInterface } from '@interfaces/modifier.interface';
 
 export class CreateModifierDto implements CreateModifierRequestInterface {
@@ -15,6 +15,10 @@ export class CreateModifierDto implements CreateModifierRequestInterface {
   @Min(0)
   @IsOptional()
   public price: number;
+
+  @IsBoolean()
+  @IsOptional()
+  public isHidden: boolean;
 }
 
 export class EditModifierDto implements EditModifierRequestInterface {
@@ -36,6 +40,10 @@ export class EditModifierDto implements EditModifierRequestInterface {
   @Min(0)
   @IsOptional()
   public price: number;
+
+  @IsBoolean()
+  @IsOptional()
+  public isHidden: boolean;
 }
 
 export class DeleteModifierDto implements DeleteModifierRequestInterface {

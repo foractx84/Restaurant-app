@@ -1,5 +1,5 @@
 import { Day } from '@enums/day';
-import { OtterOrgStore } from '@interfaces/otter.interface';
+import { OtterOrgStore, OtterOrgStoreAddress } from '@interfaces/otter.interface';
 import { CreateRestaurantRequestInterface } from '@interfaces/restaurants.interface';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -40,7 +40,7 @@ export function validateOtterOrgStore(store: OtterOrgStore): string | null {
 export function mapOtterOrgStoreToRestaurant(store: OtterOrgStore): CreateRestaurantRequestInterface {
   const name = store.name.trim();
   const address = store.address;
-  const address1 = (address?.fullAddress?.trim() || address?.addressLines?.[0]?.trim())!;
+  const address1 = extractStreetAddress(address)!;
 
   return {
     name,
@@ -59,6 +59,32 @@ export function mapOtterOrgStoreToRestaurant(store: OtterOrgStore): CreateRestau
     },
     restaurantHours: [{ day: [Day.MON, Day.TUE, Day.WED, Day.THU, Day.FRI], start: DEFAULT_OPEN, end: DEFAULT_CLOSE }],
   };
+}
+
+/**
+ * Otter's `fullAddress` is a fully-formatted string that already embeds city/state/zip/country
+ * (e.g. "8080 Figueroa St, Los Angeles, CA 90003, USA"), and `addressLines[0]` is often identical
+ * to it rather than a plain street line. Using either verbatim as `address1` duplicates city/state/
+ * zip when {@link mapOtterOrgStoreToRestaurant}'s caller later builds a geocoding query as
+ * `${address1}, ${city}, ${governingDistrict}, ${postalCode}` (see restaurantAddress.service.ts) —
+ * the doubled-up query fails to resolve against the geocoder even for a valid address. Strip the
+ * trailing ", {city}..." segment (using the city Otter already supplied separately) so `address1`
+ * is just the street line.
+ */
+function extractStreetAddress(address?: OtterOrgStoreAddress): string | undefined {
+  const full = address?.fullAddress?.trim();
+  if (!full) {
+    return address?.addressLines?.[0]?.trim();
+  }
+
+  if (address?.city) {
+    const citySuffixIndex = full.toLowerCase().lastIndexOf(`, ${address.city.trim().toLowerCase()}`);
+    if (citySuffixIndex > 0) {
+      return full.slice(0, citySuffixIndex).trim();
+    }
+  }
+
+  return full;
 }
 
 function buildPlaceholderEmail(name: string): string {

@@ -29,7 +29,6 @@ jest.mock('@/services/restaurants.service', () => {
     findRestaurantsByManagerID: jest.fn(),
     getRestaurantDetails: jest.fn(),
     uploadRestaurantImages: jest.fn(),
-    updateRestaurantReservationOrderingLinks: jest.fn(),
   };
   return { __esModule: true, default: jest.fn(() => mockRestaurantsService) };
 });
@@ -547,33 +546,7 @@ describe('restaurantController', () => {
       expect(mNext).toHaveBeenCalled();
     });
   });
-  describe('updateRestaurantReservationOrderingLinks', () => {
-    const RESTAURANT_ID = 1;
-    const mReq = {
-      body: {
-        orderingUrl: 'https://ordering.com',
-        reservationUrl: 'https://reservation.com',
-      },
-    };
-    it('should successfully update restaurant ordering and reservation links', async () => {
-      const mRes: Partial<Response> = {
-        json: jest.fn(),
-        locals: { restaurantID: RESTAURANT_ID },
-      };
 
-      await restaurantController.updateRestaurantReservationOrderingLinks(mReq as Request, mRes as Response, jest.fn() as NextFunction);
-
-      expect(mockRestaurantsService.updateRestaurantReservationOrderingLinks).toHaveBeenCalledWith(mReq.body, RESTAURANT_ID);
-    });
-    it('should not update restaurant ordering and reservation urls due to invalid request', async () => {
-      const mReq = undefined;
-      const mRes: Partial<Response> = {};
-      const mNext = jest.fn();
-      await restaurantController.updateRestaurantReservationOrderingLinks(mReq as Request, mRes as Response, mNext as NextFunction);
-      expect(mockRestaurantsService.updateRestaurantReservationOrderingLinks).not.toHaveBeenCalled();
-      expect(mNext).toHaveBeenCalled();
-    });
-  });
   describe('getRestaurantDetails', () => {
     it('should successfully get restaurant details', async () => {
       const RESTAURANT_ID = 1;

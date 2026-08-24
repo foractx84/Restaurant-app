@@ -1,9 +1,4 @@
-import {
-  CreateRestaurantRequestInterface,
-  EditRestaurantRequestInterface,
-  RestaurantReservationOrderingLinksInterface,
-  RestaurantsDBInterface,
-} from '@/interfaces/restaurants.interface';
+import { CreateRestaurantRequestInterface, EditRestaurantRequestInterface, RestaurantsDBInterface } from '@/interfaces/restaurants.interface';
 import RestaurantsModel from '@/models/restaurants.model';
 import RestaurantsService from '@/services/restaurants.service';
 import { getErrorPayload, HttpException, InternalErrorCode } from '@exceptions/HttpException';
@@ -126,7 +121,6 @@ jest.mock('@/models/restaurants.model', () => {
     getRestaurantByID: jest.fn(),
     getRestaurantByNameAndAddress: jest.fn(),
     getRestaurantEntityByID: jest.fn(),
-    getRestaurantEntityWithHoursAndAddressByID: jest.fn(),
     getRestaurantEntityWithModifiersByID: jest.fn(),
     getRestaurantsEntityByManagerID: jest.fn(),
     getRestaurantDetailsEntityByRestaurantID: jest.fn(),
@@ -306,40 +300,6 @@ describe('restaurantsService', () => {
       }
 
       expect(mockRestaurantsModel.getRestaurantEntityWithModifiersByID).toHaveBeenCalledTimes(1);
-    });
-  });
-  describe('findRestaurantEntityWithHoursAndAddressByID', () => {
-    const RESTAURANT_ID = 1012;
-    it('should successfully get restaurant with hours and address by id', async () => {
-      const restaurantEntity = {
-        restaurant_id: RESTAURANT_ID,
-        name: 'Hours Restaurant',
-        hours: [{ day: 'Monday', start: '07:00', end: '17:00' }],
-        restaurant_address: { timezone: 'America/New_York' },
-      };
-
-      (mockRestaurantsModel.getRestaurantEntityWithHoursAndAddressByID as jest.MockedFunction<any>).mockResolvedValueOnce(
-        restaurantEntity as unknown as RestaurantEntity,
-      );
-
-      const result = await restaurantsService.findRestaurantEntityWithHoursAndAddressByID(RESTAURANT_ID);
-      // enforce test expectations
-      expect(mockRestaurantsModel.getRestaurantEntityWithHoursAndAddressByID).toHaveBeenCalledWith(RESTAURANT_ID, undefined);
-      expect(result).toEqual(restaurantEntity);
-    });
-    it('should throw a HttpException if any error occurs while getting restaurant with hours and address by id', async () => {
-      (mockRestaurantsModel.getRestaurantEntityWithHoursAndAddressByID as jest.MockedFunction<any>).mockImplementation(() => {
-        throw new Error();
-      });
-
-      try {
-        await restaurantsService.findRestaurantEntityWithHoursAndAddressByID(RESTAURANT_ID);
-      } catch (err) {
-        expect(err.status).toEqual(500);
-        expect(err.payload instanceof HttpException);
-      }
-
-      expect(mockRestaurantsModel.getRestaurantEntityWithHoursAndAddressByID).toHaveBeenCalledTimes(1);
     });
   });
   describe('findRestaurantsByManagerID', () => {
@@ -753,7 +713,7 @@ describe('restaurantsService', () => {
       await restaurantsService.editRestaurant(RESTAURANT_REQUEST, RESTAURANT_ID);
 
       expect(mockRestaurantsModel.getRestaurantByNameAndAddress).toHaveBeenCalledTimes(1);
-      expect(mockCuisineService.checkIfCuisineExists).toHaveBeenCalledWith(RESTAURANT_REQUEST.cuisineID);
+      expect(mockCuisineService.checkIfCuisineExists).not.toHaveBeenCalled();
       expect(mockCountryService.checkCountryExistsByName).toHaveBeenCalledWith(RESTAURANT_REQUEST.address.country);
       expect(transaction).toHaveBeenCalledTimes(1);
     });
@@ -791,13 +751,19 @@ describe('restaurantsService', () => {
       }
 
       expect(mockCuisineService.checkIfCuisineExists).not.toHaveBeenCalled();
-      expect(mockCuisineService.checkIfCuisineExists).not.toHaveBeenCalled();
       expect(mockRestaurantAddressService.getRestaurantAddressByRestaurantID).toHaveBeenCalledTimes(1);
       expect(mockRestaurantsModel.getRestaurantByNameAndAddress).toHaveBeenCalledTimes(1);
       expect(transaction).not.toHaveBeenCalled();
     });
     it('should throw a 409 HttpException if restaurant already exists by name and address with name and address being provided', async () => {
+      (mockCuisineService.checkIfCuisineExists as jest.MockedFunction<any>).mockResolvedValueOnce({
+        cuisine_id: 1,
+        name: 'Asian',
+        date_created: '2022-01-01T00:00:00Z',
+      } as CuisineEntity);
+
       (mockRestaurantsModel.getRestaurantByNameAndAddress as jest.MockedFunction<any>).mockResolvedValueOnce(EXISTING_RESTAURANT);
+
       (mockCountryService.checkCountryExistsByName as jest.MockedFunction<any>).mockResolvedValueOnce(mockCountryUnitedStatesResponse);
 
       const transaction = jest.fn();
@@ -809,14 +775,14 @@ describe('restaurantsService', () => {
         expect(err.payload instanceof HttpException);
       }
 
-      expect(mockCuisineService.checkIfCuisineExists).toHaveBeenCalledTimes(1);
+      expect(mockCuisineService.checkIfCuisineExists).not.toHaveBeenCalled();
       expect(mockCountryService.checkCountryExistsByName).toHaveBeenCalledTimes(1);
       expect(mockRestaurantAddressService.getRestaurantAddressByRestaurantID).not.toHaveBeenCalled();
       expect(mockRestaurantsModel.getRestaurantByNameAndAddress).toHaveBeenCalledTimes(1);
       expect(transaction).not.toHaveBeenCalled();
     });
     it('should throw a 409 HttpException if restaurant already exists by name and address with only address provided (determined using restaurant id)', async () => {
-      (mockRestaurantsModel.getRestaurantEntityByID as jest.MockedFunction<any>).mockResolvedValueOnce(EXISTING_RESTAURANT);
+      (mockRestaurantsModel.getRestaurantEntityByID as jest.MockedFunction<any>).mockResolvedValue(EXISTING_RESTAURANT);
       (mockRestaurantsModel.getRestaurantByNameAndAddress as jest.MockedFunction<any>).mockResolvedValueOnce(EXISTING_RESTAURANT);
       (mockCountryService.checkCountryExistsByName as jest.MockedFunction<any>).mockResolvedValueOnce(mockCountryUnitedStatesResponse);
 
@@ -849,82 +815,6 @@ describe('restaurantsService', () => {
       }
     });
   });
-  describe('updateRestaurantReservationOrderingLinks', () => {
-    const RESTAURANT_ID = 1;
-    const RESTAURANT_LINKS_REQUEST: RestaurantReservationOrderingLinksInterface = {
-      orderingUrl: 'https://testOrderingUrl.com',
-      reservationUrl: 'https://testReservationUrl.com',
-    };
-    const RESTAURANT_LINKS_REQUEST_EMPTY: RestaurantReservationOrderingLinksInterface = {
-      orderingUrl: '',
-      reservationUrl: '',
-    };
-    const RESTAURANT_LINKS_DB_REQUEST: RestaurantEntity = {
-      ordering_url: 'https://testOrderingUrl.com',
-      reservation_url: 'https://testReservationUrl.com',
-    };
-    const RESTAURANT_LINKS_DB_REQUEST_EMPTY: RestaurantEntity = {
-      ordering_url: null,
-      reservation_url: null,
-    };
-    it('should update restaurant reservation and ordering links for restaurant', async () => {
-      (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({});
-
-      await restaurantsService.updateRestaurantReservationOrderingLinks(RESTAURANT_LINKS_REQUEST, RESTAURANT_ID);
-      expect(mockRestaurantsModel.updateRestaurantEntity).toHaveBeenCalledWith(RESTAURANT_LINKS_DB_REQUEST, RESTAURANT_ID);
-    });
-    it('should update restaurant reservation and ordering links for restaurant with empty strings', async () => {
-      (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({});
-
-      await restaurantsService.updateRestaurantReservationOrderingLinks(RESTAURANT_LINKS_REQUEST_EMPTY, RESTAURANT_ID);
-
-      expect(mockRestaurantsModel.updateRestaurantEntity).toHaveBeenCalledWith(RESTAURANT_LINKS_DB_REQUEST_EMPTY, RESTAURANT_ID);
-    });
-    it('should not update restaurant reservation and ordering links for restaurant if no urls provided in request', async () => {
-      (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({});
-      await restaurantsService.updateRestaurantReservationOrderingLinks({}, RESTAURANT_ID);
-
-      expect(mockRestaurantsModel.updateRestaurantEntity).not.toHaveBeenCalled();
-    });
-    it('should only update restaurant reservation link (even if empty string) for restaurant if ordering link not provided in request', async () => {
-      const RESERVATION_LINK_REQUEST: RestaurantReservationOrderingLinksInterface = {
-        reservationUrl: '',
-      };
-      const RESERVATION_LINK_DB_REQUEST: RestaurantEntity = {
-        reservation_url: null,
-      };
-
-      (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({});
-      await restaurantsService.updateRestaurantReservationOrderingLinks(RESERVATION_LINK_REQUEST, RESTAURANT_ID);
-
-      expect(mockRestaurantsModel.updateRestaurantEntity).toHaveBeenCalledWith(RESERVATION_LINK_DB_REQUEST, RESTAURANT_ID);
-    });
-    it('should only update restaurant ordering link (even if empty string) for restaurant if reservation link not provided in request', async () => {
-      const ORDERING_LINK_REQUEST: RestaurantReservationOrderingLinksInterface = {
-        reservationUrl: '',
-      };
-      const ORDERING_LINK_DB_REQUEST: RestaurantEntity = {
-        reservation_url: null,
-      };
-
-      (ormConnection as jest.MockedFunction<any>).mockResolvedValueOnce({});
-      await restaurantsService.updateRestaurantReservationOrderingLinks(ORDERING_LINK_REQUEST, RESTAURANT_ID);
-
-      expect(mockRestaurantsModel.updateRestaurantEntity).toHaveBeenCalledWith(ORDERING_LINK_DB_REQUEST, RESTAURANT_ID);
-    });
-    it('should throw some HttpException if HttpException error occurs while updating restaurant ordering and reservation links', async () => {
-      (mockRestaurantsModel.updateRestaurantEntity as jest.MockedFunction<any>).mockImplementation(() => {
-        throw new Error();
-      });
-
-      try {
-        await restaurantsService.updateRestaurantReservationOrderingLinks(RESTAURANT_LINKS_REQUEST, RESTAURANT_ID);
-      } catch (err) {
-        expect(err.status).toEqual(500);
-        expect(err.payload instanceof HttpException);
-      }
-    });
-  });
   describe('getRestaurantDetails', () => {
     const IMAGE_NAME = 'df94-34ds-23f3-dfsr.jpeg';
     const RESTAURANT_ID = 1;
@@ -932,6 +822,25 @@ describe('restaurantsService', () => {
       restaurant_url_id: 'test',
       restaurant_id: 1,
       name: 'The Noho Kitchen',
+      brand: {
+        description: 'Traditional steakhouse fare is served in an ornate setting with a separate piano room & wine cellar.',
+        website: 'test.com',
+        cuisine: {
+          cuisine_id: 2,
+          name: 'Spanish',
+        },
+        socials: {
+          facebook: 'https://test.com',
+          instagram: null,
+          tiktok: null,
+          snapchat: 'https://test2.com',
+          twitter: null,
+        },
+        orderingUrl: 'https://ordering.com',
+        reservationUrl: 'https://reservation.com',
+        primaryTagline: 'Fresh ingredients, bold flavors',
+        secondaryTagline: 'Open since 1987',
+      },
       description: 'Traditional steakhouse fare is served in an ornate setting with a separate piano room & wine cellar.',
       email: 'NohoKitchen@nohokitchen.com',
       phone: '5555555555',

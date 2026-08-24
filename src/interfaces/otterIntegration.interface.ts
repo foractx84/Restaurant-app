@@ -6,8 +6,7 @@ export interface OtterWebhookMetadata {
   storeId?: string;
   applicationId?: string;
   resourceId?: string;
-  payload?: unknown;
-  resourceHref?: string;
+  payload?: Record<string, unknown>;
 }
 
 export interface OtterWebhookEvent {
@@ -15,6 +14,7 @@ export interface OtterWebhookEvent {
   eventType: string;
   eventTime?: string;
   metadata: OtterWebhookMetadata;
+  resourceHref?: string;
 }
 
 export interface OtterOAuthConnectResult {
@@ -38,12 +38,6 @@ export interface OtterIntegrationControllerInterface {
   oAuthCallback: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   triggerMenuSync: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   pushMenu: (req: Request, res: Response, next: NextFunction) => Promise<void>;
-
-  updateStorefrontAvailability: (
-    req: Request,
-    res: Response,
-    next: NextFunction,
-  ) => Promise<void>;
 }
 
 /** Result of pushing a restaurant's menu to Otter — `POST /v1/menus` returns immediately with a `PENDING` job. */
@@ -101,18 +95,4 @@ export interface OtterIntegrationServiceInterface {
    * fast-resolving case. Throws if the restaurant has no connected Otter store.
    */
   pushMenuToOtter: (restaurantID: number) => Promise<OtterMenuPushResult>;
-
-  updateStorefrontAvailability: (
-    restaurantID: number,
-    isAcceptingOrders: boolean,
-  ) => Promise<UpdateOtterStorefrontAvailabilityResult>;
-}
-
-export interface UpdateOtterStorefrontAvailabilityRequest {
-  isAcceptingOrders: boolean;
-}
-
-export interface UpdateOtterStorefrontAvailabilityResult {
-  isAcceptingOrders: boolean;
-  storeState: 'OPEN' | 'OPERATOR_PAUSED';
 }

@@ -38,9 +38,15 @@ class BrandsModel {
         repository = await ormConnection();
       }
 
-      return await repository.findOne(BrandEntity, {
-        id: brandID,
-      });
+      return await repository.findOne(
+        BrandEntity,
+        {
+          id: brandID,
+        },
+        {
+          relations: ['cuisine', 'socials'],
+        },
+      );
     } catch (err) {
       logger.warn(`Error occurred while getting brand by id: ${brandID} - ` + err);
 
@@ -64,6 +70,23 @@ class BrandsModel {
       throw new HttpException(
         500,
         getErrorPayload(InternalErrorCode.databaseError, `Error occurred while creating brand. Refer to the logs for more detail.`),
+      );
+    }
+  };
+
+  updateBrand = async (brandID: string, patch: Partial<BrandEntity>, repository?: EntityManager): Promise<void> => {
+    try {
+      if (!repository) {
+        repository = await ormConnection();
+      }
+
+      await repository.update(BrandEntity, brandID, patch);
+    } catch (err) {
+      logger.warn(`Error occurred while updating brand ${brandID} - ` + err);
+
+      throw new HttpException(
+        500,
+        getErrorPayload(InternalErrorCode.databaseError, `Error occurred while updating brand ${brandID}. Refer to the logs for more detail.`),
       );
     }
   };

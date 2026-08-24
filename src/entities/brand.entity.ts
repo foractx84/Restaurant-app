@@ -1,7 +1,9 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { BrandInterface } from '@interfaces/brand.interface';
 import { RestaurantGroupEntity } from './restaurantGroup.entity';
 import { RestaurantEntity } from './restaurant.entity';
+import { CuisineEntity } from './cuisine.entity';
+import { BrandSocialsEntity } from './brandSocials.entity';
 
 /**
  * Child of restaurant_groups, parent of restaurants (locations). A brand belongs to exactly one
@@ -18,6 +20,57 @@ export class BrandEntity implements BrandInterface {
   @Column('text', { nullable: false })
   name: string;
 
+  @Column('text', { nullable: true })
+  description?: string;
+
+  @Column('text', { nullable: true })
+  website?: string;
+
+  @Column('text', {
+    name: 'primary_tagline',
+    nullable: true,
+  })
+  primaryTagline?: string;
+
+  @Column('text', {
+    name: 'secondary_tagline',
+    nullable: true,
+  })
+  secondaryTagline?: string;
+
+  @Column('text', {
+    name: 'reservation_url',
+    nullable: true,
+  })
+  reservationUrl?: string;
+
+  @Column('text', {
+    name: 'ordering_url',
+    nullable: true,
+  })
+  orderingUrl?: string;
+
+  @Column('int4', {
+    name: 'cuisine_id',
+    nullable: true,
+  })
+  cuisineID?: number;
+
+  @Column('text', {
+    name: 'logo_url',
+    nullable: true,
+  })
+  logoUrl?: string;
+
+  @ManyToOne(() => CuisineEntity, cuisine => cuisine.brands, {
+    nullable: true,
+  })
+  @JoinColumn({
+    name: 'cuisine_id',
+    referencedColumnName: 'cuisine_id',
+  })
+  cuisine?: CuisineEntity;
+
   @Column('timestamptz', { name: 'created_at', select: false })
   createdAt?: Date;
 
@@ -33,6 +86,9 @@ export class BrandEntity implements BrandInterface {
 
   @OneToMany(() => RestaurantEntity, restaurant => restaurant.brand)
   restaurants?: RestaurantEntity[];
+
+  @OneToOne(() => BrandSocialsEntity, socials => socials.brand)
+  socials?: BrandSocialsEntity;
 
   constructor(restaurantGroupID: string, name: string, id?: string) {
     this.id = id;

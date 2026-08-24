@@ -16,7 +16,7 @@ jest.mock('@utils/logger', () => ({
 
 describe('OtterIntegrationController', () => {
   const mockService: OtterIntegrationServiceInterface = {
-    handleOtterWebhook: jest.fn(),
+    handleOtterWebhook: jest.fn().mockResolvedValue(undefined),
     handleOAuthWithAuthCode: jest.fn(),
     connectStoreWithAuthCode: jest.fn(),
     processOtterMenuSyncJob: jest.fn(),
@@ -24,7 +24,6 @@ describe('OtterIntegrationController', () => {
     triggerManualMenuSync: jest.fn(),
     processOtterMenuSyncScan: jest.fn(),
     pushMenuToOtter: jest.fn(),
-    updateStorefrontAvailability: jest.fn(),
   };
 
   let controller: OtterIntegrationController;
@@ -144,6 +143,64 @@ describe('OtterIntegrationController', () => {
 
       expect(mockService.handleOAuthWithAuthCode).toHaveBeenCalledWith('abc', 'brand-9', 'store-9');
     });
+
+    it('redirects to the manager frontend with otterConnected=1 on a completed connection', async () => {
+      const originalFrontendUrl = OTTER.MANAGER_FRONTEND_URL;
+      OTTER.MANAGER_FRONTEND_URL = 'https://manager-dev.trytaptab.com';
+      (mockService.handleOAuthWithAuthCode as jest.Mock).mockResolvedValue({
+        connected: true,
+        connection: { restaurantID: 1, otterStoreId: 'store-1', brandId: 'brand-1', storeName: 'Store One' },
+      });
+      mReq = { query: { code: 'abc', brandId: 'brand-1', storeId: 'store-1' } };
+
+      await controller.oAuthCallback(mReq as Request, mRes as Response, jest.fn());
+
+      expect(mRes.redirect).toHaveBeenCalledWith('https://manager-dev.trytaptab.com/settings/account?otterConnected=1');
+      expect(mRes.json).not.toHaveBeenCalled();
+
+      OTTER.MANAGER_FRONTEND_URL = originalFrontendUrl;
+    });
+
+    it('redirects to the manager frontend with an encoded store list when multiple stores are returned', async () => {
+      const originalFrontendUrl = OTTER.MANAGER_FRONTEND_URL;
+      OTTER.MANAGER_FRONTEND_URL = 'https://manager-dev.trytaptab.com';
+      (mockService.handleOAuthWithAuthCode as jest.Mock).mockResolvedValue({
+        connected: false,
+        selectableStores: [
+          { brandId: 'brand-1', brandName: 'Brand', store: { id: 'store-1', name: 'Store One' } },
+          { brandId: 'brand-1', brandName: 'Brand', store: { id: 'store-2', name: 'Store Two' } },
+        ],
+      });
+      mReq = { query: { code: 'abc' } };
+
+      await controller.oAuthCallback(mReq as Request, mRes as Response, jest.fn());
+
+      const [redirectUrl] = (mRes.redirect as jest.Mock).mock.calls[0];
+      const url = new URL(redirectUrl);
+      expect(url.origin + url.pathname).toBe('https://manager-dev.trytaptab.com/settings/account');
+      const decoded = JSON.parse(Buffer.from(url.searchParams.get('otterSelectStores'), 'base64url').toString('utf-8'));
+      expect(decoded).toEqual([
+        { brandId: 'brand-1', brandName: 'Brand', storeId: 'store-1', storeName: 'Store One' },
+        { brandId: 'brand-1', brandName: 'Brand', storeId: 'store-2', storeName: 'Store Two' },
+      ]);
+
+      OTTER.MANAGER_FRONTEND_URL = originalFrontendUrl;
+    });
+
+    it('falls back to a raw JSON response when no manager frontend URL is configured', async () => {
+      const originalFrontendUrl = OTTER.MANAGER_FRONTEND_URL;
+      OTTER.MANAGER_FRONTEND_URL = undefined;
+      (mockService.handleOAuthWithAuthCode as jest.Mock).mockResolvedValue({ connected: true });
+      mReq = { query: { code: 'abc', brandId: 'brand-1', storeId: 'store-1' } };
+
+      await controller.oAuthCallback(mReq as Request, mRes as Response, jest.fn());
+
+      expect(mRes.redirect).not.toHaveBeenCalled();
+      expect(mRes.status).toHaveBeenCalledWith(200);
+      expect(mRes.json).toHaveBeenCalledWith({ connected: true });
+
+      OTTER.MANAGER_FRONTEND_URL = originalFrontendUrl;
+    });
   });
 
   describe('triggerMenuSync', () => {
@@ -189,83 +246,6 @@ describe('OtterIntegrationController', () => {
       const next = jest.fn();
 
       await controller.pushMenu({} as Request, mRes as Response, next);
-
-      expect(next).toHaveBeenCalledWith(error);
-    });
-  });
-
-  describe('updateStorefrontAvailability', () => {
-    it('parses restaurantID, forwards isAcceptingOrders, and returns 200 with the service result', async () => {
-      (mockService.updateStorefrontAvailability as jest.Mock).mockResolvedValue({
-        isAcceptingOrders: false,
-        storeState: 'OPERATOR_PAUSED',
-      });
-
-      const req = {
-        body: {
-          isAcceptingOrders: false,
-        },
-      } as Request;
-
-      const res = {
-        locals: {
-          restaurantID: '7',
-        },
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      } as unknown as Response;
-
-      const next = jest.fn();
-
-      await controller.updateStorefrontAvailability(
-        req,
-        res,
-        next,
-      );
-
-      expect(mockService.updateStorefrontAvailability).toHaveBeenCalledWith(
-        7,
-        false,
-      );
-
-      expect(res.status).toHaveBeenCalledWith(200);
-
-      expect(res.json).toHaveBeenCalledWith({
-        isAcceptingOrders: false,
-        storeState: 'OPERATOR_PAUSED',
-      });
-
-      expect(next).not.toHaveBeenCalled();
-    });
-
-    it('forwards service errors to next', async () => {
-      const error = new Error('Otter unavailable');
-
-      (mockService.updateStorefrontAvailability as jest.Mock).mockRejectedValue(
-        error,
-      );
-
-      const req = {
-        body: {
-          isAcceptingOrders: true,
-        },
-      } as Request;
-
-      const res = {
-        locals: {
-          restaurantID: '7',
-        },
-        status: jest.fn().mockReturnThis(),
-        json: jest.fn(),
-      } as unknown as Response;
-
-      const next = jest.fn();
-
-      await controller.updateStorefrontAvailability(
-        req,
-        res,
-        next,
-      );
 
       expect(next).toHaveBeenCalledWith(error);
     });

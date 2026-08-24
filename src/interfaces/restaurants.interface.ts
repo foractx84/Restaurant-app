@@ -20,7 +20,6 @@ export interface RestaurantControllerInterface {
   getRestaurantDetails: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   readRestaurants: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   backupRestaurantMenus: (req: Request, res: Response, next: NextFunction) => Promise<void>;
-  updateRestaurantReservationOrderingLinks: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   uploadRestaurantImages: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   linkStripeConnectAccount: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   getStripeConnectOnboardingUrl: (req: Request, res: Response, next: NextFunction) => Promise<void>;
@@ -38,7 +37,6 @@ export interface RestaurantsServiceInterface {
   findRestaurantsByManagerID: (managerID: number, isSuper?: boolean) => Promise<GetRestaurantsResponse>;
   findRestaurantEntityByID: (restaurantID: number) => Promise<RestaurantEntity>;
   findRestaurantEntityByIDAndLocationID: (restaurantID: number, locationID: number, manager?: EntityManager) => Promise<RestaurantEntity>;
-  findRestaurantEntityWithHoursAndAddressByID: (restaurantID: number, manager?: EntityManager) => Promise<RestaurantEntity>;
   findRestaurantEntityWithModifiersByID: (restaurantID: number, manager?: EntityManager) => Promise<RestaurantEntity>;
   uploadRestaurantImages: (
     galleryImages: string[],
@@ -51,11 +49,6 @@ export interface RestaurantsServiceInterface {
     restaurantID: number,
     thumbnailImage: string,
   ) => Promise<RestaurantImagesInterface>;
-  updateRestaurantReservationOrderingLinks: (
-    links: RestaurantReservationOrderingLinksInterface,
-    restaurantID: number,
-    respository?: EntityManager,
-  ) => Promise<void>;
   updateRestaurantEntity: (patch: Partial<RestaurantEntity>, restaurantID: number) => Promise<void>;
   verifyRestaurants: (restaurantIDs: number[]) => Promise<number[]>; // returns verified restaurant ids
   findRestaurantEntityByNameAndAddress: (
@@ -86,7 +79,6 @@ export interface RestaurantsModelInterface {
   getRestaurantDetailsEntityByRestaurantID: (restaurantID: number, repository?: EntityManager) => Promise<RestaurantEntity>;
   getRestaurantEntityByID: (restaurantID: number) => Promise<RestaurantEntity>;
   getRestaurantEntityByIDAndLocationID: (restaurantID: number, locationID: number, manager?: EntityManager) => Promise<RestaurantEntity>;
-  getRestaurantEntityWithHoursAndAddressByID: (restaurantID: number, manager?: EntityManager) => Promise<RestaurantEntity>;
   getRestaurantEntityWithModifiersByID: (restaurantID: number, manager?: EntityManager) => Promise<RestaurantEntity>;
   getRestaurantsForBackup: () => Promise<RestaurantEntity[]>;
   getRestaurantsEntityByManagerID: (managerID: number, isSuper: boolean, repository?: EntityManager) => Promise<RestaurantEntity[]>;
@@ -123,8 +115,6 @@ export interface GetRestaurantDetailResponse {
   socials: RestaurantSocialsInterface;
   restaurantHours: CreateHoursInterface[];
   availabilityNotes: string;
-  reservation_url?: string;
-  ordering_url?: string;
   reservationUrl: string;
   orderingUrl: string;
   primaryTagline: string;
@@ -190,9 +180,4 @@ export interface EditRestaurantRequestInterface {
 export interface RestaurantCurrencyInterface {
   code: string;
   symbol: string;
-}
-
-export interface RestaurantReservationOrderingLinksInterface {
-  reservationUrl?: string;
-  orderingUrl?: string;
 }

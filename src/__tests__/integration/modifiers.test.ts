@@ -148,6 +148,49 @@ describe('modifiers API', () => {
         await removeModifier(modifierID);
       },
     );
+
+    it('hides then unhides a modifier, persisting isHidden across both transitions', async () => {
+      // ModifierEntity.isHidden was write-once at creation (always false) before this ticket -- no
+      // edit path could ever change it after the fact. This proves the PUT /modifier endpoint can now
+      // toggle it both directions, verified by re-fetching via GET /modifiers rather than just
+      // trusting the 200 status the other cases in this block check.
+      mockVerify();
+      const createReq: CreateModifierRequestInterface = { name: 'hide unhide modifier', description: 'test', price: 100 };
+      const cRes = await request(app.getServer())
+        .post('/modifier')
+        .set('Authorization', 'token')
+        .set('restaurantID', '1')
+        .send(createReq)
+        .expect(200);
+      const modifierID = cRes.body.modifierID;
+      expect(cRes.body.isHidden).toBe(false);
+
+      const fetchModifier = async (): Promise<ModifierResponse> => {
+        mockVerify();
+        const res = await request(app.getServer()).get('/modifiers').set('Authorization', 'token').set('restaurantID', '1').expect(200);
+        return (res.body as ModifierResponse[]).find(modifier => modifier.modifierID === modifierID);
+      };
+
+      mockVerify();
+      await request(app.getServer())
+        .put('/modifier')
+        .set('Authorization', 'token')
+        .set('restaurantID', '1')
+        .send({ modifierID, isHidden: true } as EditModifierRequestInterface)
+        .expect(200);
+      expect((await fetchModifier()).isHidden).toBe(true);
+
+      mockVerify();
+      await request(app.getServer())
+        .put('/modifier')
+        .set('Authorization', 'token')
+        .set('restaurantID', '1')
+        .send({ modifierID, isHidden: false } as EditModifierRequestInterface)
+        .expect(200);
+      expect((await fetchModifier()).isHidden).toBe(false);
+
+      await removeModifier(modifierID);
+    });
   });
   describe('DELETE /modifiers', () => {
     it('should successfully soft delete modifier ', async () => {

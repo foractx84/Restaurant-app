@@ -7,7 +7,6 @@ import {
   RestaurantsModelInterface,
   RestaurantsServiceInterface,
   EditRestaurantRequestInterface,
-  RestaurantReservationOrderingLinksInterface,
   GetRestaurantDetailResponse,
 } from '@/interfaces/restaurants.interface';
 import { logger } from '@utils/logger';
@@ -36,7 +35,6 @@ import { RestaurantMenuLayoutEntity } from '@/entities/restaurantMenuLayout.enti
 import { MenuLayoutInterface } from '@interfaces/menuLayout.interface';
 import { RestaurantSocialsServiceInterface } from '@/interfaces/restaurantSocials.interface';
 import { RestaurantSocialsEntity } from '@/entities/restaurantSocials.entity';
-import { RESTAURANT_SOCIALS } from '@/constants/restaurantSocials.constants';
 import { RestaurantHoursServiceInterface } from '@/interfaces/restaurantHours.interface';
 import { RestaurantHoursEntity } from '@/entities/restaurantHours.entity';
 import { MediaEntity } from '@/entities/media.entity';
@@ -198,37 +196,21 @@ class RestaurantsService implements RestaurantsServiceInterface {
 
   editRestaurant = async (restaurant: EditRestaurantRequestInterface, restaurantID: number): Promise<void> => {
     try {
-      const {
-        name,
-        address,
-        phone,
-        description,
-        cuisineID,
-        website,
-        email,
-        socials,
-        restaurantHours,
-        availabilityNotes,
-        primaryTagline,
-        secondaryTagline,
-      } = restaurant || {};
+      const { name, address, phone, email, restaurantHours, availabilityNotes } = restaurant || {};
+
       const { country } = address || {};
 
       let countryEntity;
+
       if (address) {
         countryEntity = await this.countryService.checkCountryExistsByName(country);
       }
 
-      if (cuisineID) {
-        await this.cuisinesService.checkIfCuisineExists(cuisineID);
-      }
-
       if (name && !address) {
-        // if only the name is provided then use restaurant id to validate not a duplicate for name/address
         await this.checkRestaurantAlreadyExistsByNameAndRestaurantID(name, restaurantID);
       } else if (name && address) {
-        // if name and address are provided then use to validate not a duplicate for name/address
         const { address1, city, governingDistrict, postalCode } = address;
+
         await this.checkRestaurantAlreadyExistsByNameAndAddress(
           name,
           address1,
@@ -239,8 +221,8 @@ class RestaurantsService implements RestaurantsServiceInterface {
           restaurantID,
         );
       } else if (!name && address) {
-        // if only address is provided then use restaurant id get existing name to validate not a duplicate for name/address
         const { address1, city, governingDistrict, postalCode } = address;
+
         await this.checkRestaurantAlreadyExistsByAddressAndRestaurantID(
           address1,
           city,
@@ -252,38 +234,25 @@ class RestaurantsService implements RestaurantsServiceInterface {
       }
 
       const ormConn: EntityManager = await ormConnection();
+
       await ormConn.transaction(async conn => {
-        if (
-          name ||
-          phone ||
-          description ||
-          description === '' ||
-          cuisineID ||
-          website ||
-          website === '' ||
-          email ||
-          typeof availabilityNotes === 'string' ||
-          typeof primaryTagline === 'string' ||
-          typeof secondaryTagline === 'string'
-        ) {
-          await this.restaurantsModel.updateRestaurantEntity(this.buildRestaurantEntityForUpdate(restaurant), restaurantID, conn);
+        const restaurantUpdate: EditRestaurantRequestInterface = {
+          name,
+          phone,
+          email,
+          availabilityNotes,
+        };
+
+        const shouldUpdateRestaurant = name || phone || email || typeof availabilityNotes === 'string';
+
+        if (shouldUpdateRestaurant) {
+          await this.restaurantsModel.updateRestaurantEntity(this.buildRestaurantEntityForUpdate(restaurantUpdate), restaurantID, conn);
         }
 
         if (address) {
           await this.restaurantAddressService.updateRestaurantAddress(address, countryEntity, restaurantID, conn);
         }
-        if (socials && Object.keys(socials)?.length) {
-          // find PK id of socials
-          const restaurantSocialsID = (await this.restaurantSocialsService.getRestaurantSocialsByRestaurantID(restaurantID, conn))
-            ?.restaurantSocialsID;
-          if (restaurantSocialsID) {
-            // if exists, then update socials, else insert
-            await this.restaurantSocialsService.updateRestaurantSocials({ ...socials, restaurantSocialsID }, conn);
-          } else if (Object.values(socials)?.some(social => social?.trim()?.length)) {
-            // dont insert new socials if all are empty strings
-            await this.restaurantSocialsService.createRestaurantSocials({ ...socials, restaurantID }, conn);
-          }
-        }
+
         if (restaurantHours?.length) {
           await this.restaurantHoursService.removeRestaurantHours(restaurantID, conn);
 
@@ -292,18 +261,18 @@ class RestaurantsService implements RestaurantsServiceInterface {
       });
     } catch (err) {
       if (err instanceof HttpException) {
-        // if error has already been typed and taken care of
         throw err;
-      } else {
-        logger.error(`Error occurred while editing restaurant: ${JSON.stringify(restaurant)} - ` + err);
-        throw new HttpException(
-          500,
-          getErrorPayload(
-            InternalErrorCode.runtimeError,
-            `Error occurred while editing restaurant: ${JSON.stringify(restaurant)}. Refer to logs for more info.`,
-          ),
-        );
       }
+
+      logger.error(`Error occurred while editing restaurant: ${JSON.stringify(restaurant)} - ` + err);
+
+      throw new HttpException(
+        500,
+        getErrorPayload(
+          InternalErrorCode.runtimeError,
+          `Error occurred while editing restaurant: ${JSON.stringify(restaurant)}. Refer to logs for more info.`,
+        ),
+      );
     }
   };
 
@@ -362,21 +331,6 @@ class RestaurantsService implements RestaurantsServiceInterface {
         getErrorPayload(
           InternalErrorCode.databaseError,
           `Error occurred while getting restaurant with modifiers by ID: ${restaurantID}. Refer to the logs for more detail.`,
-        ),
-      );
-    }
-  };
-
-  findRestaurantEntityWithHoursAndAddressByID = async (restaurantID: number, manager?: EntityManager): Promise<RestaurantEntity> => {
-    try {
-      return await this.restaurantsModel.getRestaurantEntityWithHoursAndAddressByID(restaurantID, manager);
-    } catch (err) {
-      logger.error(`Error occurred while getting restaurant with hours and address by ID: ${restaurantID} - ` + err);
-      throw new HttpException(
-        500,
-        getErrorPayload(
-          InternalErrorCode.databaseError,
-          `Error occurred while getting restaurant with hours and address by ID: ${restaurantID}. Refer to the logs for more detail.`,
         ),
       );
     }
@@ -539,34 +493,6 @@ class RestaurantsService implements RestaurantsServiceInterface {
           getErrorPayload(
             InternalErrorCode.runtimeError,
             `Error occurred while uploading restaurant images for restaurant: ${restaurantID}. Refer to logs for more info.`,
-          ),
-        );
-      }
-    }
-  };
-
-  updateRestaurantReservationOrderingLinks = async (
-    links: RestaurantReservationOrderingLinksInterface,
-    restaurantID: number,
-    repository?: EntityManager,
-  ): Promise<void> => {
-    try {
-      if (!repository) {
-        repository = await ormConnection();
-      }
-      if (Object.keys(links).length) {
-        await this.restaurantsModel.updateRestaurantEntity(this.buildRestaurantReservationOrderingLinksUpdate(links), restaurantID);
-      }
-    } catch (err) {
-      if (err instanceof HttpException) {
-        throw err;
-      } else {
-        logger.error(`Error occurred while upserting restaurant reservation and orderling links for restaurantID: ${restaurantID} - ` + err);
-        throw new HttpException(
-          500,
-          getErrorPayload(
-            InternalErrorCode.runtimeError,
-            `Error occurred while upserting restaurant reservation and orderling links for restaurantID: ${restaurantID}. Refer to logs for more info.`,
           ),
         );
       }
@@ -767,31 +693,13 @@ class RestaurantsService implements RestaurantsServiceInterface {
       layoutID: menuLayout?.['menu_layout_id']?.['menu_layout_id'],
       name: menuLayout?.['menu_layout_id']?.['layout'],
     });
-    const buildRestaurantSocialLinks = (socials: RestaurantSocialsEntity) => {
-      if (!socials) {
-        return {
-          facebook: '',
-          instagram: '',
-          snapchat: '',
-          tiktok: '',
-          twitter: '',
-        };
-      }
-      // no socials for this restaurant, set to null strings
-      if (!Object.keys(socials)?.length) {
-        RESTAURANT_SOCIALS.forEach(social => {
-          socials[social] = '';
-        });
-      } else {
-        // set null values of social to empty strings
-        RESTAURANT_SOCIALS.forEach(social => {
-          socials[social] = socials[social] || '';
-        });
-        delete socials['restaurant_id'];
-        delete socials['restaurant_socials_id'];
-      }
-      return socials;
-    };
+    const buildSocialLinks = (socials?: { facebook?: string; instagram?: string; snapchat?: string; tiktok?: string; twitter?: string }) => ({
+      facebook: socials?.facebook || '',
+      instagram: socials?.instagram || '',
+      snapchat: socials?.snapchat || '',
+      tiktok: socials?.tiktok || '',
+      twitter: socials?.twitter || '',
+    });
     const menuResponse: GetRestaurantMenuResponse[] = [];
     for (const menu of restaurant.menus) {
       menuResponse.push({
@@ -808,44 +716,57 @@ class RestaurantsService implements RestaurantsServiceInterface {
     }
 
     const {
-      cuisine_id: cuisine,
       restaurant_address: restaurantAddress,
       restaurant_menu_layouts: restaurantMenuLayouts,
       images,
-      socials,
       hours,
       restaurant_profile_albums: albums,
+      brand,
     } = restaurant;
 
     const response: GetRestaurantDetailResponse = {
       restaurantUrlID: restaurant.restaurant_url_id,
       restaurantID: restaurant.restaurant_id,
       name: restaurant?.name,
-      description: restaurant?.description || '',
+
+      description: brand?.description || '',
+
       phone: restaurant?.phone,
       email: restaurant?.email,
       isPublished: restaurant?.is_published,
-      website: restaurant?.website || '',
+
+      website: brand?.website || '',
+
       address: buildRestaurantAddress(restaurantAddress),
+
       cuisine: {
-        cuisineID: cuisine?.['cuisine_id'],
-        name: cuisine?.['name'],
+        cuisineID: brand?.cuisine?.['cuisine_id'],
+        name: brand?.cuisine?.['name'],
       },
+
       currency: {
         code: restaurantAddress?.country_id?.['currency_code'] || '',
         symbol: (getSymbolFromCurrency(restaurantAddress?.country_id?.['currency_code']) || '') as string,
       },
+
       pages: this.buildRestaurantDetailsPageResponse(restaurant?.profilePages) || [],
+
       images: await buildRestaurantMedia(albums, images),
+
       menus: menuResponse,
+
       menuLayout: restaurantMenuLayouts?.length ? buildMenuLayout(restaurantMenuLayouts[0]) : { layoutID: 0, name: '' },
-      socials: buildRestaurantSocialLinks(socials),
+
+      socials: buildSocialLinks(brand?.socials),
+
       restaurantHours: this.restaurantHoursService.buildCreateRestaurantHoursResponse(hours),
+
       availabilityNotes: restaurant?.availability_notes || '',
-      reservationUrl: obtainUrlHTTPS(restaurant?.reservation_url) || '',
-      orderingUrl: obtainUrlHTTPS(restaurant?.ordering_url) || '',
-      primaryTagline: restaurant?.primary_tagline || '',
-      secondaryTagline: restaurant?.secondary_tagline || '',
+
+      reservationUrl: obtainUrlHTTPS(brand?.reservationUrl) || '',
+      orderingUrl: obtainUrlHTTPS(brand?.orderingUrl) || '',
+      primaryTagline: brand?.primaryTagline || '',
+      secondaryTagline: brand?.secondaryTagline || '',
     };
 
     return response;
@@ -940,29 +861,21 @@ class RestaurantsService implements RestaurantsServiceInterface {
 
   buildRestaurantEntityForUpdate = (restaurant: EditRestaurantRequestInterface): RestaurantEntity => {
     const restaurantEntity = new RestaurantEntity();
-    const camelToSnakeExclusions = new Set([
-      'address',
-      'cuisineID',
-      'socials',
-      'restaurantHours',
-      'availabilityNotes',
-      'primaryTagline',
-      'secondaryTagline',
-    ]);
-    for (const [key, value] of Object.entries(restaurant)) {
-      if (!camelToSnakeExclusions.has(key) && value) {
-        restaurantEntity[key] = value;
-      } else if (key === 'cuisineID' && value) {
-        restaurantEntity.cuisine_id = value;
-      } else if (key === 'availabilityNotes') {
-        restaurantEntity.availability_notes = value || null;
-      } else if (key === 'primaryTagline') {
-        restaurantEntity.primary_tagline = value || null;
-      } else if (key === 'secondaryTagline') {
-        restaurantEntity.secondary_tagline = value || null;
-      } else if ((key === 'description' || key === 'website') && value === '') {
-        restaurantEntity[key] = null;
-      }
+
+    if (restaurant?.name) {
+      restaurantEntity.name = restaurant.name;
+    }
+
+    if (restaurant?.phone) {
+      restaurantEntity.phone = restaurant.phone;
+    }
+
+    if (restaurant?.email) {
+      restaurantEntity.email = restaurant.email;
+    }
+
+    if (typeof restaurant?.availabilityNotes === 'string') {
+      restaurantEntity.availability_notes = restaurant.availabilityNotes || null;
     }
 
     return restaurantEntity;
@@ -1142,20 +1055,6 @@ class RestaurantsService implements RestaurantsServiceInterface {
         ),
       );
     }
-  };
-
-  buildRestaurantReservationOrderingLinksUpdate = (links: RestaurantReservationOrderingLinksInterface): Partial<RestaurantEntity> => {
-    if (typeof links?.orderingUrl === 'string' && typeof links?.reservationUrl === 'string') {
-      // insert both reservation and ordering url
-      return {
-        ordering_url: links?.orderingUrl || null,
-        reservation_url: links?.reservationUrl || null,
-      };
-    } else if (typeof links?.orderingUrl === 'string' && !links?.reservationUrl) {
-      // insert only ordering url
-      return { ordering_url: links?.orderingUrl || null };
-    }
-    return { reservation_url: links?.reservationUrl || null }; // only reservation url to insert
   };
 
   buildRestaurantDetailsPageResponse = (profilePages: ProfilePageEntity[]): GetProfilePageResponseInterface[] | null =>

@@ -1,0 +1,100 @@
+# Workflow to build and deploy the 
+
+name: build-push-deploy-prod
+
+on:
+  push:
+    tags:        
+      - v*
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: taptab-cloud-infrastructure
+
+jobs:
+  setup-build-publish-deploy:
+    name: Setup, Build, Publish, and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Set environment variables
+        run: |-
+          echo "ENV=prod" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # This is a separate action that sets up buildx runner
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      # So now you can use Actions' own caching!
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      # Setup gcloud CLI
+      # Add "id-token" with the intended permissions.
+      - id: 'auth'
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v1'
+        with:
+          credentials_json: '${{ secrets.GCP_GITHUB_SA }}'
+
+      - uses: google-github-actions/setup-gcloud@v1
+        with:
+          version: '406.0.0'
+          project_id: ${{ env.PROJECT_ID }}
+
+      # Configure Docker to use the gcloud command-line tool as a credential
+      # helper for authentication
+      - run: |-
+          gcloud --quiet auth configure-docker us-east1-docker.pkg.dev
+
+      # Build the Docker image
+      - name: Build
+        run: |-
+          make buildx
+
+        # This ugly bit is necessary if you don't want your cache to grow forever
+        # until it hits GitHub's limit of 5GB.
+        # Temp fix
+        # https://github.com/docker/build-push-action/issues/252
+        # https://github.com/moby/buildkit/issues/1896
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      # Push the Docker image to Google Container Registry
+      - name: Publish
+        run: |-
+          make push
+
+      - name: Extract release name
+        shell: bash
+        run: echo "release=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+        id: extract_release
+
+      - name: Send slack notification
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"New docker image uploaded to the Container Registry for SuperBackend from release: ${{ env.release }} and commit: ${{ github.sha }}"}' \
+          ${{ secrets.SLACK_HOOK_URL_CICD_CHANNEL }}
+
+      # Deploy image to Cloud Run
+      - name: Deploy
+        run: |-
+          make deploy
+
+      - name: Send slack notification
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{"text":"New revision deployed to Cloud Run for SuperBackend from release: ${{ env.release }} and commit: ${{ github.sha }}"}' \
+          ${{ secrets.SLACK_HOOK_URL_CICD_CHANNEL }}

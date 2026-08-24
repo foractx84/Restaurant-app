@@ -89,17 +89,19 @@ export const OTTER = {
   /** Redirect URI registered in the Otter Developer Portal for the authorization-code flow. */
   REDIRECT_URI: process.env.OTTER_REDIRECT_URI,
   /**
-   * Scopes for client-credentials (server-to-server) calls, including menu sync,
-   * menu push, and Storefront availability/pause/hours operations.
-   * Organization onboarding uses ORG_SCOPES with the authorization-code grant instead.
+   * Scopes for client-credentials (server-to-server) calls, including menu sync (`menus.read`) and
+   * menu push (`menus.upsert`, `menus.async_job.read`).
+   * Organization onboarding uses {@link ORG_SCOPES} with the authorization-code grant instead.
    */
   SCOPES:
-  process.env.OTTER_SCOPES ??
-  'callback.error.write menus.async_job.read menus.entity_suspension menus.get_current menus.publish menus.read menus.upsert menus.upsert_hours orders.create orders.update ping storefront.store_availability storefront.store_pause_unpause storefront.store_hours_configuration',
+    process.env.OTTER_SCOPES ??
+    'callback.error.write menus.async_job.read menus.entity_suspension menus.get_current menus.publish menus.read menus.upsert menus.upsert_hours orders.create orders.update ping',
   /**
    * Scopes requested during organization onboarding (authorization-code flow).
    * @see https://developer-guides.tryotter.com/docs/organization-integrations-onboarding-flow/
    */
   ORG_SCOPES: process.env.OTTER_ORG_SCOPES ?? 'organization.read organization.service_integration',
   WEBHOOK_SECRET: process.env.OTTER_WEBHOOK_SECRET,
+  /** Manager frontend base URL; the OAuth callback redirects here to hand control back to the UI. */
+  MANAGER_FRONTEND_URL: process.env.TAP_MANAGER_URL,
 };

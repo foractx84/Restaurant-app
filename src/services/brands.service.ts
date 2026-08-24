@@ -6,16 +6,25 @@ import { ormConnection } from '@utils/dbUtils';
 import BrandsModel from '@models/brands.model';
 import RestaurantsModel from '@models/restaurants.model';
 import RestaurantGroupsService from '@services/restaurantGroups.service';
+import { CreateBrandDto, EditBrandDto } from '@dtos/brand.dto';
+import { BrandSocialsServiceInterface } from '@interfaces/brandSocials.interface';
 
 class BrandsService {
   private brandsModel: BrandsModel;
   private restaurantGroupsService: RestaurantGroupsService;
   private restaurantsModel: RestaurantsModel;
+  private brandSocialsService: BrandSocialsServiceInterface;
 
-  constructor(brandsModel: BrandsModel, restaurantGroupsService: RestaurantGroupsService, restaurantsModel: RestaurantsModel) {
+  constructor(
+    brandsModel: BrandsModel,
+    restaurantGroupsService: RestaurantGroupsService,
+    restaurantsModel: RestaurantsModel,
+    brandSocialsService: BrandSocialsServiceInterface,
+  ) {
     this.brandsModel = brandsModel;
     this.restaurantGroupsService = restaurantGroupsService;
     this.restaurantsModel = restaurantsModel;
+    this.brandSocialsService = brandSocialsService;
   }
 
   getBrandsByRestaurantGroupID = async (restaurantGroupID: string): Promise<BrandEntity[]> => {
@@ -65,13 +74,37 @@ class BrandsService {
     }
   };
 
-  createBrand = async (restaurantGroupID: string, name: string): Promise<BrandEntity> => {
+  createBrand = async (restaurantGroupID: string, brandRequest: CreateBrandDto): Promise<BrandEntity> => {
     try {
       await this.restaurantGroupsService.getRestaurantGroupByID(restaurantGroupID);
 
-      const brand = new BrandEntity(restaurantGroupID, name);
+      const repository = await ormConnection();
 
-      return await this.brandsModel.createBrand(brand);
+      return await repository.transaction(async manager => {
+        const brand = new BrandEntity(restaurantGroupID, brandRequest.name);
+
+        brand.description = brandRequest.description;
+        brand.website = brandRequest.website;
+        brand.primaryTagline = brandRequest.primaryTagline;
+        brand.secondaryTagline = brandRequest.secondaryTagline;
+        brand.reservationUrl = brandRequest.reservationUrl;
+        brand.orderingUrl = brandRequest.orderingUrl;
+        brand.cuisineID = brandRequest.cuisineID;
+
+        const createdBrand = await this.brandsModel.createBrand(brand, manager);
+
+        if (brandRequest.socials && Object.values(brandRequest.socials).some(value => value?.trim()?.length)) {
+          await this.brandSocialsService.createBrandSocials(
+            {
+              brandID: createdBrand.id,
+              ...brandRequest.socials,
+            },
+            manager,
+          );
+        }
+
+        return createdBrand;
+      });
     } catch (err) {
       if (err instanceof HttpException) {
         throw err;
@@ -82,6 +115,116 @@ class BrandsService {
       throw new HttpException(
         500,
         getErrorPayload(InternalErrorCode.runtimeError, `Error occurred while creating brand. Refer to the logs for more detail.`),
+      );
+    }
+  };
+
+  updateBrand = async (brandID: string, brandRequest: EditBrandDto): Promise<void> => {
+    try {
+      await this.getBrandByID(brandID);
+
+      const repository = await ormConnection();
+
+      await repository.transaction(async manager => {
+        const patch: Partial<BrandEntity> = {};
+
+        if (typeof brandRequest.name === 'string') {
+          patch.name = brandRequest.name;
+        }
+
+        if (typeof brandRequest.description === 'string') {
+          patch.description = brandRequest.description;
+        }
+
+        if (typeof brandRequest.website === 'string') {
+          patch.website = brandRequest.website;
+        }
+
+        if (typeof brandRequest.primaryTagline === 'string') {
+          patch.primaryTagline = brandRequest.primaryTagline;
+        }
+
+        if (typeof brandRequest.secondaryTagline === 'string') {
+          patch.secondaryTagline = brandRequest.secondaryTagline;
+        }
+
+        if (typeof brandRequest.reservationUrl === 'string') {
+          patch.reservationUrl = brandRequest.reservationUrl;
+        }
+
+        if (typeof brandRequest.orderingUrl === 'string') {
+          patch.orderingUrl = brandRequest.orderingUrl;
+        }
+
+        if (typeof brandRequest.cuisineID === 'number') {
+          patch.cuisineID = brandRequest.cuisineID;
+        }
+
+        if (Object.keys(patch).length) {
+          await this.brandsModel.updateBrand(brandID, patch, manager);
+        }
+
+        if (brandRequest.socials) {
+          const existingSocials = await this.brandSocialsService.getBrandSocialsByBrandID(brandID, manager);
+
+          if (existingSocials?.brandSocialsID) {
+            await this.brandSocialsService.updateBrandSocials(
+              {
+                ...brandRequest.socials,
+                brandID,
+                brandSocialsID: existingSocials.brandSocialsID,
+              },
+              manager,
+            );
+          } else if (Object.values(brandRequest.socials).some(value => value?.trim()?.length)) {
+            await this.brandSocialsService.createBrandSocials(
+              {
+                brandID,
+                ...brandRequest.socials,
+              },
+              manager,
+            );
+          }
+        }
+      });
+    } catch (err) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      logger.error(`Error occurred while updating brand ${brandID} - ` + err);
+
+      throw new HttpException(
+        500,
+        getErrorPayload(InternalErrorCode.runtimeError, `Error occurred while updating brand ${brandID}. Refer to the logs for more detail.`),
+      );
+    }
+  };
+
+  updateBrandLogo = async (brandID: string, logoUrl: string): Promise<string | undefined> => {
+    try {
+      const brand = await this.getBrandByID(brandID);
+
+      const previousLogoUrl = brand.logoUrl;
+
+      await this.brandsModel.updateBrand(brandID, {
+        logoUrl,
+      });
+
+      return previousLogoUrl;
+    } catch (err) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      logger.error(`Error occurred while updating logo for brand ${brandID} - ` + err);
+
+      throw new HttpException(
+        500,
+        getErrorPayload(
+          InternalErrorCode.runtimeError,
+          `Error occurred while updating logo for brand ${brandID}. Refer to the logs for more detail.`,
+        ),
       );
     }
   };

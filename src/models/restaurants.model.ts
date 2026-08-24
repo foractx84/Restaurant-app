@@ -147,22 +147,6 @@ class RestaurantsModel implements RestaurantsModelInterface {
       .getOne();
   };
 
-  // Operating hours + the address that carries the timezone -- the two relations needed to answer
-  // Otter's `storefront.get_store_hours` event. `getRestaurantEntityByID` only loads `menus`.
-  getRestaurantEntityWithHoursAndAddressByID = async (restaurantID: number, manager?: EntityManager): Promise<RestaurantEntity> => {
-    if (!manager) {
-      manager = await ormConnection();
-    }
-
-    return await manager
-      .getRepository(RestaurantEntity)
-      .createQueryBuilder('restaurant')
-      .leftJoinAndSelect('restaurant.hours', 'hours')
-      .leftJoinAndSelect('restaurant.restaurant_address', 'restaurant_address')
-      .where('restaurant.restaurant_id = :restaurantID', { restaurantID })
-      .getOne();
-  };
-
   getRestaurantDetailsEntityByRestaurantID = async (restaurantID: number, repository?: EntityManager): Promise<RestaurantEntity> => {
     try {
       if (!repository) {
@@ -173,7 +157,9 @@ class RestaurantsModel implements RestaurantsModelInterface {
         .createQueryBuilder('restaurants')
         .where('restaurants.deleted = :deleted', { deleted: false })
         .andWhere('restaurants.restaurant_id = :restaurantID', { restaurantID })
-        .leftJoinAndSelect('restaurants.cuisine_id', 'cuisine')
+        .leftJoinAndSelect('restaurants.brand', 'brand')
+        .leftJoinAndSelect('brand.cuisine', 'brandCuisine')
+        .leftJoinAndSelect('brand.socials', 'brandSocials')
         .leftJoinAndSelect('restaurants.restaurant_address', 'address')
         .leftJoinAndSelect('address.country_id', 'country')
         .leftJoinAndSelect('restaurants.images', 'images', 'images.deleted IS NULL OR images.deleted = false')
@@ -182,7 +168,6 @@ class RestaurantsModel implements RestaurantsModelInterface {
         .leftJoinAndSelect('menu.sections', 'menuSections', 'menuSections.deleted IS NULL OR menuSections.deleted = false')
         .leftJoinAndSelect('restaurants.restaurant_menu_layouts', 'restaurantMenuLayouts')
         .leftJoinAndSelect('restaurantMenuLayouts.menu_layout_id', 'menuLayout')
-        .leftJoinAndSelect('restaurants.socials', 'socials')
         .leftJoinAndSelect('restaurants.hours', 'hours')
         .leftJoinAndSelect('restaurants.profilePages', 'pages', 'pages.deleted_at IS NULL')
         .leftJoinAndSelect('restaurants.restaurant_profile_albums', 'albums', 'albums.deleted_at IS NULL')

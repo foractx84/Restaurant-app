@@ -4,7 +4,6 @@ import {
   EditRestaurantRequestInterface,
   RestaurantBackupServiceInterface,
   RestaurantControllerInterface,
-  RestaurantReservationOrderingLinksInterface,
   RestaurantsServiceInterface,
 } from '@interfaces/restaurants.interface';
 import {
@@ -70,17 +69,6 @@ class RestaurantController implements RestaurantControllerInterface {
       const managerID: number = parseInt(res.locals.managerID);
       const isSuper = !!res.locals.isSuper;
       res.json(await this.restaurantService.findRestaurantsByManagerID(managerID, isSuper));
-    } catch (err) {
-      next(err);
-    }
-  };
-
-  updateRestaurantReservationOrderingLinks = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    try {
-      const restaurantLinks = req.body as RestaurantReservationOrderingLinksInterface;
-      const restaurantID: number = parseInt(res.locals.restaurantID);
-      await this.restaurantService.updateRestaurantReservationOrderingLinks(restaurantLinks, restaurantID);
-      res.sendStatus(200);
     } catch (err) {
       next(err);
     }

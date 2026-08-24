@@ -1,8 +1,4 @@
-import {
-  CreateRestaurantRequestInterface,
-  EditRestaurantRequestInterface,
-  RestaurantReservationOrderingLinksInterface,
-} from '@interfaces/restaurants.interface';
+import { CreateRestaurantRequestInterface, EditRestaurantRequestInterface } from '@interfaces/restaurants.interface';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
@@ -95,10 +91,6 @@ export class EditRestaurantDto implements EditRestaurantRequestInterface {
   public name: string;
 
   @IsString()
-  @IsOptional()
-  public description: string;
-
-  @IsString()
   @MinLength(7)
   @IsOptional()
   public phone: string;
@@ -108,24 +100,10 @@ export class EditRestaurantDto implements EditRestaurantRequestInterface {
   @IsOptional()
   public email: string;
 
-  @IsInt()
-  @IsPositive()
-  @IsOptional()
-  public cuisineID: number;
-
-  @IsString()
-  @IsOptional()
-  public website: string;
-
   @ValidateNested({ each: true })
   @Type(() => EditRestaurantAddressRequestDto)
   @IsOptional()
   public address: EditRestaurantAddressRequestDto;
-
-  @ValidateNested({ each: true })
-  @Type(() => CreateRestaurantSocialsRequestDto)
-  @IsOptional()
-  public socials: CreateRestaurantSocialsRequestDto;
 
   @ValidateNested({ each: true })
   @ArrayNotEmpty()
@@ -135,31 +113,12 @@ export class EditRestaurantDto implements EditRestaurantRequestInterface {
   @validateHoursNotOverlapping('restaurantHours', {
     message: 'Provided Hours cannot overlap',
   })
-  @IsNotEmpty()
   @IsOptional()
   public restaurantHours: CreateRestaurantHoursRequestDto[];
 
   @IsString()
   @IsOptional()
   public availabilityNotes: string;
-
-  @IsString()
-  @IsOptional()
-  public primaryTagline: string;
-
-  @IsString()
-  @IsOptional()
-  public secondaryTagline: string;
-}
-
-export class RestaurantReservationOrderingLinksDto implements RestaurantReservationOrderingLinksInterface {
-  @IsString()
-  @IsOptional()
-  public reservationUrl: string;
-
-  @IsString()
-  @IsOptional()
-  public orderingUrl: string;
 }
 
 export class LinkStripeConnectAccountDto {

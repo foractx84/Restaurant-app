@@ -3,12 +3,15 @@ import BrandsController from '@/controllers/brands.controller';
 import BrandsService from '@/services/brands.service';
 import { BrandEntity } from '@/entities/brand.entity';
 import { RestaurantEntity } from '@/entities/restaurant.entity';
+import { deleteImageIfExists } from '@/utils/imageUtils';
 
 jest.mock('@/services/brands.service', () => {
   const mockBrandsService = {
     getBrandsByRestaurantGroupID: jest.fn(),
     getBrandByID: jest.fn(),
     createBrand: jest.fn(),
+    updateBrand: jest.fn(),
+    updateBrandLogo: jest.fn(),
     getRestaurantsByBrandID: jest.fn(),
     assignRestaurantToBrand: jest.fn(),
     updateRestaurantOrder: jest.fn(),
@@ -20,7 +23,12 @@ jest.mock('@/services/brands.service', () => {
   };
 });
 
-const mockBrandsService = new BrandsService({} as any, {} as any, {} as any);
+jest.mock('@/utils/imageUtils', () => ({
+  __esModule: true,
+  deleteImageIfExists: jest.fn(),
+}));
+
+const mockBrandsService = new BrandsService({} as any, {} as any, {} as any, {} as any);
 
 const brandsController = new BrandsController(mockBrandsService);
 
@@ -33,6 +41,7 @@ describe('BrandsController', () => {
       json: jest.fn(),
       status: jest.fn().mockReturnThis(),
       send: jest.fn(),
+      sendStatus: jest.fn(),
     };
 
     mockNext = jest.fn();
@@ -95,6 +104,9 @@ describe('BrandsController', () => {
         id: brandID,
         restaurantGroupID: '22222222-2222-4222-8222-222222222222',
         name: 'Test Brand',
+        description: 'Test description',
+        website: 'https://test.com',
+        cuisineID: 1,
       } as BrandEntity;
 
       const mockRequest = {
@@ -131,31 +143,42 @@ describe('BrandsController', () => {
   });
 
   describe('createBrand', () => {
-    it('should create brand and return 201', async () => {
+    it('should create brand with full request and return 201', async () => {
       const restaurantGroupID = '22222222-2222-4222-8222-222222222222';
 
-      const name = 'Test Brand';
+      const brandRequest = {
+        name: 'Test Brand',
+        description: 'Test description',
+        website: 'https://test.com',
+        primaryTagline: 'Primary tagline',
+        secondaryTagline: 'Secondary tagline',
+        reservationUrl: 'https://test.com/reserve',
+        orderingUrl: 'https://test.com/order',
+        cuisineID: 1,
+        socials: {
+          facebook: 'https://facebook.com/test',
+          instagram: 'https://instagram.com/test',
+        },
+      };
 
       const createdBrand = {
         id: '11111111-1111-4111-8111-111111111111',
         restaurantGroupID,
-        name,
+        name: brandRequest.name,
       } as BrandEntity;
 
       const mockRequest = {
         params: {
           restaurantGroupID,
         },
-        body: {
-          name,
-        },
+        body: brandRequest,
       } as unknown as Request;
 
       (mockBrandsService.createBrand as jest.MockedFunction<any>).mockResolvedValueOnce(createdBrand);
 
       await brandsController.createBrand(mockRequest, mockResponse as Response, mockNext);
 
-      expect(mockBrandsService.createBrand).toHaveBeenCalledWith(restaurantGroupID, name);
+      expect(mockBrandsService.createBrand).toHaveBeenCalledWith(restaurantGroupID, brandRequest);
 
       expect(mockResponse.status).toHaveBeenCalledWith(201);
       expect(mockResponse.json).toHaveBeenCalledWith(createdBrand);
@@ -177,6 +200,211 @@ describe('BrandsController', () => {
       (mockBrandsService.createBrand as jest.MockedFunction<any>).mockRejectedValueOnce(error);
 
       await brandsController.createBrand(mockRequest, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('updateBrand', () => {
+    it('should update brand and return 200', async () => {
+      const brandID = '11111111-1111-4111-8111-111111111111';
+
+      const brandRequest = {
+        description: 'Updated description',
+        website: 'https://updated.com',
+        cuisineID: 2,
+        socials: {
+          facebook: 'https://facebook.com/updated',
+        },
+      };
+
+      const mockRequest = {
+        params: {
+          brandID,
+        },
+        body: brandRequest,
+      } as unknown as Request;
+
+      (mockBrandsService.updateBrand as jest.MockedFunction<any>).mockResolvedValueOnce(undefined);
+
+      await brandsController.updateBrand(mockRequest, mockResponse as Response, mockNext);
+
+      expect(mockBrandsService.updateBrand).toHaveBeenCalledWith(brandID, brandRequest);
+
+      expect(mockResponse.sendStatus).toHaveBeenCalledWith(200);
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should pass error to next', async () => {
+      const error = new Error('service failure');
+
+      const mockRequest = {
+        params: {
+          brandID: '11111111-1111-4111-8111-111111111111',
+        },
+        body: {
+          description: 'Updated description',
+        },
+      } as unknown as Request;
+
+      (mockBrandsService.updateBrand as jest.MockedFunction<any>).mockRejectedValueOnce(error);
+
+      await brandsController.updateBrand(mockRequest, mockResponse as Response, mockNext);
+
+      expect(mockNext).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('uploadBrandLogo', () => {
+    it('should update brand logo and return logo url', async () => {
+      const brandID = '11111111-1111-4111-8111-111111111111';
+
+      const logoFile = {
+        fieldname: 'logo',
+        originalname: 'logo.png',
+        encoding: '7bit',
+        mimetype: 'image/png',
+        size: 1000,
+        filename: 'new-logo.png',
+      } as Express.Multer.File;
+
+      const mockRequest = {
+        params: {
+          brandID,
+        },
+        files: {
+          logo: [logoFile],
+        },
+      } as unknown as Request;
+
+      (mockBrandsService.updateBrandLogo as jest.MockedFunction<any>).mockResolvedValueOnce(undefined);
+
+      await brandsController.uploadBrandLogo(mockRequest, mockResponse as Response, mockNext);
+
+      expect(mockBrandsService.updateBrandLogo).toHaveBeenCalledWith(brandID, 'new-logo.png');
+
+      expect(deleteImageIfExists).not.toHaveBeenCalled();
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        logoUrl: 'new-logo.png',
+      });
+
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should delete previous logo when replacing logo', async () => {
+      const brandID = '11111111-1111-4111-8111-111111111111';
+
+      const logoFile = {
+        fieldname: 'logo',
+        originalname: 'new-logo.png',
+        encoding: '7bit',
+        mimetype: 'image/png',
+        size: 1000,
+        filename: 'new-logo.png',
+      } as Express.Multer.File;
+
+      const mockRequest = {
+        params: {
+          brandID,
+        },
+        files: {
+          logo: [logoFile],
+        },
+      } as unknown as Request;
+
+      (mockBrandsService.updateBrandLogo as jest.MockedFunction<any>).mockResolvedValueOnce('old-logo.png');
+
+      await brandsController.uploadBrandLogo(mockRequest, mockResponse as Response, mockNext);
+
+      expect(mockBrandsService.updateBrandLogo).toHaveBeenCalledWith(brandID, 'new-logo.png');
+
+      expect(deleteImageIfExists).toHaveBeenCalledWith('old-logo.png');
+
+      expect(mockResponse.status).toHaveBeenCalledWith(200);
+
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        logoUrl: 'new-logo.png',
+      });
+
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should not delete previous logo when filename is the same', async () => {
+      const brandID = '11111111-1111-4111-8111-111111111111';
+
+      const logoFile = {
+        fieldname: 'logo',
+        filename: 'same-logo.png',
+      } as Express.Multer.File;
+
+      const mockRequest = {
+        params: {
+          brandID,
+        },
+        files: {
+          logo: [logoFile],
+        },
+      } as unknown as Request;
+
+      (mockBrandsService.updateBrandLogo as jest.MockedFunction<any>).mockResolvedValueOnce('same-logo.png');
+
+      await brandsController.uploadBrandLogo(mockRequest, mockResponse as Response, mockNext);
+
+      expect(deleteImageIfExists).not.toHaveBeenCalled();
+
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        logoUrl: 'same-logo.png',
+      });
+    });
+
+    it('should return 400 when logo file is missing', async () => {
+      const mockRequest = {
+        params: {
+          brandID: '11111111-1111-4111-8111-111111111111',
+        },
+        files: {},
+      } as unknown as Request;
+
+      await brandsController.uploadBrandLogo(mockRequest, mockResponse as Response, mockNext);
+
+      expect(mockBrandsService.updateBrandLogo).not.toHaveBeenCalled();
+
+      expect(mockResponse.status).toHaveBeenCalledWith(400);
+
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        message: 'Logo image is required.',
+      });
+
+      expect(mockNext).not.toHaveBeenCalled();
+    });
+
+    it('should delete newly uploaded logo and pass error to next when service fails', async () => {
+      const error = new Error('service failure');
+
+      const brandID = '11111111-1111-4111-8111-111111111111';
+
+      const logoFile = {
+        fieldname: 'logo',
+        filename: 'new-logo.png',
+      } as Express.Multer.File;
+
+      const mockRequest = {
+        params: {
+          brandID,
+        },
+        files: {
+          logo: [logoFile],
+        },
+      } as unknown as Request;
+
+      (mockBrandsService.updateBrandLogo as jest.MockedFunction<any>).mockRejectedValueOnce(error);
+
+      await brandsController.uploadBrandLogo(mockRequest, mockResponse as Response, mockNext);
+
+      expect(deleteImageIfExists).toHaveBeenCalledWith('new-logo.png');
 
       expect(mockNext).toHaveBeenCalledWith(error);
     });
@@ -237,6 +465,7 @@ describe('BrandsController', () => {
   describe('assignRestaurantToBrand', () => {
     it('should assign restaurant to brand and return 204', async () => {
       const brandID = '11111111-1111-4111-8111-111111111111';
+
       const restaurantID = 1001;
 
       const mockRequest = {
@@ -278,6 +507,7 @@ describe('BrandsController', () => {
   describe('updateRestaurantOrder', () => {
     it('should update restaurant order and return 204', async () => {
       const brandID = '11111111-1111-4111-8111-111111111111';
+
       const restaurantIDs = [1003, 1001, 1002];
 
       const mockRequest = {

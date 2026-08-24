@@ -7,13 +7,7 @@ import { imageUpload } from '@utils/imageUtils';
 import { reformatImageMiddleware } from '@middlewares/reformatImage.middleware';
 import authorizationMiddleware from '@middlewares/authorization.middleware';
 import validationMiddleware from '@/middlewares/validation.middleware';
-import {
-  AssignPackageToRestaurantDto,
-  CreateRestaurantDto,
-  EditRestaurantDto,
-  LinkStripeConnectAccountDto,
-  RestaurantReservationOrderingLinksDto,
-} from '@/dtos/restaurant.dto';
+import { AssignPackageToRestaurantDto, CreateRestaurantDto, EditRestaurantDto, LinkStripeConnectAccountDto } from '@/dtos/restaurant.dto';
 import { UpdateRestaurantColorSettingsDto, UpdateRestaurantFontSettingsDto } from '@/dtos/restaurantTypography.dto';
 import checkRestaurantAddressIDAndRestaurantIDMiddleware from '@middlewares/checkRestaurantAddressIDAndRestaurantID.middleware';
 import { PackageControllerInterface } from '@interfaces/package.interface';
@@ -59,12 +53,6 @@ class RestaurantRoute implements Route {
       authorizationMiddleware,
       validationMiddleware(AssignPackageToRestaurantDto, 'body'),
       this.packageController.assignPackageToRestaurant,
-    );
-    this.router.put(
-      '/urls',
-      authorizationMiddleware,
-      validationMiddleware(RestaurantReservationOrderingLinksDto, 'body'),
-      this.restaurantController.updateRestaurantReservationOrderingLinks,
     );
     this.router.put(
       '/stripe-connect',

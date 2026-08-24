@@ -1,4 +1,3 @@
-import { OTTER_STOREFRONT_EVENT } from '@constants/otter.constants';
 import { OtterWebhookEvent } from '@interfaces/otterIntegration.interface';
 
 /**
@@ -14,18 +13,11 @@ import { OtterWebhookEvent } from '@interfaces/otterIntegration.interface';
  */
 const MENU_UPDATE_EVENT_PREFIX = 'menus.';
 
-const STOREFRONT_EVENTS = new Set<string>(
-  Object.values(OTTER_STOREFRONT_EVENT),
-);
-
-export const isOtterMenuUpdateEvent = (
-  event: Pick<OtterWebhookEvent, 'eventType'> | null | undefined,
-): boolean =>
-  typeof event?.eventType === 'string' &&
-  event.eventType.startsWith(MENU_UPDATE_EVENT_PREFIX);
-
-export const isOtterStorefrontEvent = (
-  event: Pick<OtterWebhookEvent, 'eventType'> | null | undefined,
-): boolean =>
-  typeof event?.eventType === 'string' &&
-  STOREFRONT_EVENTS.has(event.eventType);
+/**
+ * True when `event.eventType` is a menu-update event (i.e. one that should trigger a menu sync),
+ * as opposed to an order event or any other Otter webhook event type. Tolerant of a missing/malformed
+ * `eventType` (returns `false` rather than throwing) so a malformed webhook payload is handled
+ * gracefully by the caller instead of crashing the request.
+ */
+export const isOtterMenuUpdateEvent = (event: Pick<OtterWebhookEvent, 'eventType'> | null | undefined): boolean =>
+  typeof event?.eventType === 'string' && event.eventType.startsWith(MENU_UPDATE_EVENT_PREFIX);

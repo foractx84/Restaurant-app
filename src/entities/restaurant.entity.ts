@@ -156,13 +156,6 @@ export class RestaurantEntity {
   })
   is_published?: boolean;
 
-  @Column('boolean', {
-    name: 'is_accepting_orders',
-    default: true,
-    nullable: false,
-  })
-  is_accepting_orders?: boolean;
-
   @Column('geometry', {
     spatialFeatureType: 'Point',
     srid: 4326,
@@ -267,7 +260,6 @@ export class RestaurantEntity {
   })
   is_careers_enabled?: boolean;
 
-  /** Optional FK to brands.id (TAB-383). NULL for standalone restaurants not part of any restaurant-group/brand hierarchy. */
   @Column('uuid', {
     name: 'brand_id',
     nullable: true,
