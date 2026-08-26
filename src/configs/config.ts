@@ -95,7 +95,7 @@ export const OTTER = {
    */
   SCOPES:
     process.env.OTTER_SCOPES ??
-    'callback.error.write menus.async_job.read menus.entity_suspension menus.get_current menus.publish menus.read menus.upsert menus.upsert_hours orders.create orders.update ping',
+    'callback.error.write menus.async_job.read menus.entity_suspension menus.get_current menus.publish menus.read menus.upsert menus.upsert_hours orders.create orders.update ping storefront.store_availability',
   /**
    * Scopes requested during organization onboarding (authorization-code flow).
    * @see https://developer-guides.tryotter.com/docs/organization-integrations-onboarding-flow/

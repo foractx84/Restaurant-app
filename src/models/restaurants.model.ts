@@ -281,6 +281,59 @@ class RestaurantsModel implements RestaurantsModelInterface {
     }
   };
 
+  /**
+   * Lean read of the storefront availability flag. Deliberately does not go through
+   * `getRestaurantEntityByID`, which eager-loads `relations: ['menus']` — Otter's get-availability
+   * webhook hits this on every request and only needs the one boolean.
+   *
+   * Returns `null` when no such (non-deleted) restaurant exists, so callers can distinguish
+   * "unknown restaurant" from "paused".
+   */
+  getRestaurantAcceptingOrdersByID = async (restaurantID: number, repository?: EntityManager): Promise<boolean | null> => {
+    try {
+      if (!repository) {
+        repository = await ormConnection();
+      }
+
+      const restaurant = await repository.findOne(RestaurantEntity, {
+        where: { restaurant_id: restaurantID, deleted: false },
+        select: ['is_accepting_orders'],
+      });
+
+      return restaurant?.is_accepting_orders ?? null;
+    } catch (err) {
+      logger.error(`Error occurred while fetching accepting-orders flag for restaurant ${restaurantID} - ` + err);
+      throw new HttpException(
+        500,
+        getErrorPayload(
+          InternalErrorCode.databaseError,
+          `Error occurred while fetching accepting-orders flag for restaurant ${restaurantID}. Refer to logs for more info.`,
+        ),
+      );
+    }
+  };
+
+  updateRestaurantAcceptingOrders = async (restaurantID: number, isAcceptingOrders: boolean, repository?: EntityManager): Promise<void> => {
+    try {
+      if (!repository) {
+        repository = await ormConnection();
+      }
+
+      await repository.update(RestaurantEntity, restaurantID, {
+        is_accepting_orders: isAcceptingOrders,
+      });
+    } catch (err) {
+      logger.error(`Error occurred while updating accepting-orders flag for restaurant ${restaurantID} - ` + err);
+      throw new HttpException(
+        500,
+        getErrorPayload(
+          InternalErrorCode.databaseError,
+          `Error occurred while updating accepting-orders flag for restaurant ${restaurantID}. Refer to logs for more info.`,
+        ),
+      );
+    }
+  };
+
   updateRestaurantListOrder = async (restaurantID: number, listOrder: number, repository?: EntityManager): Promise<void> => {
     try {
       if (!repository) {

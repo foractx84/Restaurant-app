@@ -50,6 +50,10 @@ export interface RestaurantsServiceInterface {
     thumbnailImage: string,
   ) => Promise<RestaurantImagesInterface>;
   updateRestaurantEntity: (patch: Partial<RestaurantEntity>, restaurantID: number) => Promise<void>;
+  /** Reads the storefront availability flag (`false` == paused). Throws 404 when the restaurant does not exist. */
+  findRestaurantAcceptingOrders: (restaurantID: number) => Promise<boolean>;
+  /** Sets the storefront availability flag (`false` == paused). */
+  setRestaurantAcceptingOrders: (restaurantID: number, isAcceptingOrders: boolean) => Promise<void>;
   verifyRestaurants: (restaurantIDs: number[]) => Promise<number[]>; // returns verified restaurant ids
   findRestaurantEntityByNameAndAddress: (
     name: string,
@@ -84,6 +88,9 @@ export interface RestaurantsModelInterface {
   getRestaurantsEntityByManagerID: (managerID: number, isSuper: boolean, repository?: EntityManager) => Promise<RestaurantEntity[]>;
   insertRestaurantEntity: (restaurant: RestaurantEntity, repository?: EntityManager) => Promise<RestaurantEntity>;
   updateRestaurantEntity: (restaurant: Partial<RestaurantEntity>, restaurantID: number, repository?: EntityManager) => Promise<void>;
+  /** Lean read of the storefront availability flag. `null` when the restaurant does not exist. */
+  getRestaurantAcceptingOrdersByID: (restaurantID: number, repository?: EntityManager) => Promise<boolean | null>;
+  updateRestaurantAcceptingOrders: (restaurantID: number, isAcceptingOrders: boolean, repository?: EntityManager) => Promise<void>;
 }
 
 export interface RestaurantsDBInterface {

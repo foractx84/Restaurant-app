@@ -26,6 +26,24 @@ class RestaurantHoursModel implements RestaurantHoursModelInterface {
     }
   };
 
+  getRestaurantHoursByRestaurantID = async (restaurantID: number, repository?: EntityManager): Promise<RestaurantHoursEntity[]> => {
+    try {
+      if (!repository) {
+        repository = await ormConnection();
+      }
+      return await repository.find(RestaurantHoursEntity, { where: { restaurant_id: restaurantID } });
+    } catch (err) {
+      logger.error(`Error occurred while fetching restaurant hours for restaurantID ${restaurantID} - ` + err);
+      throw new HttpException(
+        500,
+        getErrorPayload(
+          InternalErrorCode.databaseError,
+          `Error occurred while fetching restaurant hours for restaurantID ${restaurantID}. Refer to logs for more info.`,
+        ),
+      );
+    }
+  };
+
   insertRestaurantHours = async (restaurantHours: RestaurantHoursDBInterface[], repository?: EntityManager): Promise<RestaurantHoursEntity[]> => {
     try {
       if (!repository) {

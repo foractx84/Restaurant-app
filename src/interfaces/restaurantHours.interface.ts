@@ -11,10 +11,13 @@ export interface RestaurantHoursServiceInterface {
     repository?: EntityManager,
   ) => Promise<RestaurantHoursEntity[]>;
   removeRestaurantHours: (restaurantID: number, repository?: EntityManager) => Promise<void>;
+  /** Reads a restaurant's operating-hours rows (one per day/window). Used to answer Otter's store-hours webhook. */
+  findRestaurantHoursByRestaurantID: (restaurantID: number, repository?: EntityManager) => Promise<RestaurantHoursEntity[]>;
 }
 
 export interface RestaurantHoursModelInterface {
   deleteRestaurantHours: (restaurantID: number, repository?: EntityManager) => Promise<void>;
+  getRestaurantHoursByRestaurantID: (restaurantID: number, repository?: EntityManager) => Promise<RestaurantHoursEntity[]>;
   insertRestaurantHours: (restaurantHours: RestaurantHoursDBInterface[], repository?: EntityManager) => Promise<RestaurantHoursEntity[]>;
 }
 

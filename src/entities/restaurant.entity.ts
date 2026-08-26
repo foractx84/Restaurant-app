@@ -272,6 +272,13 @@ export class RestaurantEntity {
   })
   list_order?: number;
 
+  @Column('boolean', {
+    name: 'is_accepting_orders',
+    default: true,
+    nullable: false,
+  })
+  is_accepting_orders?: boolean;
+
   @ManyToOne(() => BrandEntity, brand => brand.restaurants, { nullable: true })
   @JoinColumn({ name: 'brand_id' })
   brand?: BrandEntity;

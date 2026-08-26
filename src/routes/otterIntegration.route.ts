@@ -18,6 +18,11 @@ class OtterIntegrationRoute implements Route {
     this.router.post('/webhook', bodyParser.raw({ type: 'application/json' }), this.otterIntegrationController.initWebhook);
     this.router.post('/menu-sync', authorizationMiddleware, this.otterIntegrationController.triggerMenuSync);
     this.router.post('/menu-push', authorizationMiddleware, this.otterIntegrationController.pushMenu);
+
+    // Storefront pause/unpause — backs the TapManager toggle Otter requires for certification.
+    this.router.get('/storefront/status', authorizationMiddleware, this.otterIntegrationController.getStorefrontStatus);
+    this.router.post('/storefront/pause', authorizationMiddleware, this.otterIntegrationController.pauseStorefront);
+    this.router.post('/storefront/unpause', authorizationMiddleware, this.otterIntegrationController.unpauseStorefront);
   }
 }
 

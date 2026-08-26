@@ -3,11 +3,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { OTTER } from '@configs/config';
 import { buildOtterAuthorizeUrl } from '@/api/otter.api';
 import { OtterIntegrationControllerInterface, OtterIntegrationServiceInterface, OtterWebhookEvent } from '@interfaces/otterIntegration.interface';
+import { OtterStorefrontServiceInterface } from '@interfaces/otterStorefrontService.interface';
 import { computeOtterWebhookHmac, validateOtterWebhookHmac } from '@utils/otterWebhookAuth.util';
 import { logger } from '@utils/logger';
 
 class OtterIntegrationController implements OtterIntegrationControllerInterface {
-  constructor(private readonly otterIntegrationService: OtterIntegrationServiceInterface) {}
+  constructor(
+    private readonly otterIntegrationService: OtterIntegrationServiceInterface,
+    private readonly otterStorefrontService: OtterStorefrontServiceInterface,
+  ) {}
 
   initWebhook = async (req: Request, res: Response, _next: NextFunction): Promise<void> => {
     try {
@@ -134,6 +138,39 @@ class OtterIntegrationController implements OtterIntegrationControllerInterface 
       const restaurantID = parseInt(res.locals.restaurantID, 10);
       const result = await this.otterIntegrationService.pushMenuToOtter(restaurantID);
       res.status(202).json(result);
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /**
+   * Current storefront availability for the authenticated request's restaurant. Backs the
+   * TapManager pause toggle's initial state, and lets it reflect Otter-initiated pauses on refresh.
+   */
+  getStorefrontStatus = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const restaurantID = parseInt(res.locals.restaurantID, 10);
+      res.status(200).json(await this.otterStorefrontService.getStorefrontStatus(restaurantID));
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** "Pause in Partner": pauses the storefront locally and notifies Otter. */
+  pauseStorefront = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const restaurantID = parseInt(res.locals.restaurantID, 10);
+      res.status(200).json(await this.otterStorefrontService.setAvailabilityFromPartner(restaurantID, false));
+    } catch (err) {
+      next(err);
+    }
+  };
+
+  /** "Unpause in Partner": reopens the storefront locally and notifies Otter. */
+  unpauseStorefront = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const restaurantID = parseInt(res.locals.restaurantID, 10);
+      res.status(200).json(await this.otterStorefrontService.setAvailabilityFromPartner(restaurantID, true));
     } catch (err) {
       next(err);
     }

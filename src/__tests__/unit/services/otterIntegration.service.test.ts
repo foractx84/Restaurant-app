@@ -8,6 +8,7 @@ import { MenuDetailsServiceInterface } from '@interfaces/menuDetails.interface';
 import { MenusModelsInterface, MenusServiceInterface } from '@interfaces/menus.interface';
 import { MenuHoursServiceInterface } from '@interfaces/menuHours.interface';
 import { ModifierGroupModelInterface } from '@interfaces/modifierGroup.interface';
+import { OtterStorefrontServiceInterface } from '@interfaces/otterStorefrontService.interface';
 import { PlatformIntegrationEntity } from '@entities/platformIntegration.entity';
 import { normalizeOtterMenus, stringifyNormalizedMenus } from '@utils/normalize';
 import { generateHash } from '@utils/hashUtils';
@@ -116,6 +117,12 @@ describe('OtterIntegrationService', () => {
     fetchModifierGroupsByRestaurantID: jest.fn(),
   } as unknown as ModifierGroupModelInterface;
 
+  const mockOtterStorefrontService = {
+    handleStorefrontEvent: jest.fn(),
+    setAvailabilityFromPartner: jest.fn(),
+    getStorefrontStatus: jest.fn(),
+  } as unknown as OtterStorefrontServiceInterface;
+
   let service: OtterIntegrationService;
 
   beforeEach(() => {
@@ -164,6 +171,7 @@ describe('OtterIntegrationService', () => {
       mockMenusModel,
       mockMenuHoursService,
       mockModifierGroupModel,
+      mockOtterStorefrontService,
     );
   });
 

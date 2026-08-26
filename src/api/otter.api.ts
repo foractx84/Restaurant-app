@@ -12,6 +12,11 @@ import {
   OtterStoreConnection,
   OtterTokenResponse,
 } from '@interfaces/otter.interface';
+import {
+  OtterStoreAvailabilityRequest,
+  OtterStoreEventResultRequest,
+  OtterStoreHoursRequest,
+} from '@interfaces/otterStorefront.interface';
 import { logger } from '@utils/logger';
 
 const client: AxiosInstance = axios.create({
@@ -318,11 +323,92 @@ export async function getOtterMenuJobStatus(client: AxiosInstance, jobId: string
   return data;
 }
 
+/**
+ * Notifies Otter that a store's availability changed, and doubles as the answer to Otter's
+ * get-availability webhook. Both directions use this one endpoint (confirmed by Otter API Support).
+ * Requires an `X-Store-Id`-bound client. Rate limit: 16 requests per minute. Returns 204.
+ *
+ * `eventId` becomes the `X-Event-Id` header, which the endpoint lists as OPTIONAL: echo the inbound
+ * webhook's event id when answering a request from Otter, and pass `undefined` for a
+ * partner-initiated pause/unpause, which corresponds to no event of Otter's. Don't invent one.
+ *
+ * The body is flat — `storeState`, `statusChangedAt`, `eventResultMetadata` as siblings — and
+ * `storeState` must be one of the values in {@link OTTER_STORE_STATE}. An unlisted value fails
+ * deserialization of the whole body, which Otter reports as
+ * `400 Successful event result with storeState and statusChangedAt equal to null` rather than as a
+ * field-level enum error. That message names the two fields whatever the actual cause; read it as
+ * "this body did not parse", not "these two fields were missing".
+ *
+ * @see https://connect.tryotter.com/docs/api-reference/reference/post-store-availability-change/
+ */
+export async function notifyOtterStoreAvailability(
+  client: AxiosInstance,
+  eventId: string | undefined,
+  request: OtterStoreAvailabilityRequest,
+): Promise<void> {
+  await client.post('/v1/storefront/availability', request, eventId ? { headers: { 'X-Event-Id': eventId } } : undefined);
+}
+
+/**
+ * Reports the store's operating hours to Otter, answering Otter's store-hours webhook. Otter
+ * requires this for Storefront to function at all, independent of pause/unpause support.
+ * Requires an `X-Store-Id`-bound client. Rate limit: 16 requests per minute. Returns 204.
+ *
+ * @see https://connect.tryotter.com/docs/api-reference/reference/post-store-hours-configuration-change/
+ */
+export async function notifyOtterStoreHours(client: AxiosInstance, eventId: string, request: OtterStoreHoursRequest): Promise<void> {
+  await client.post('/v1/storefront/hours', request, { headers: { 'X-Event-Id': eventId } });
+}
+
+/**
+ * Tells Otter whether the pause it requested via the pause-store webhook actually succeeded.
+ * `eventId` must echo the originating webhook's event id so Otter can correlate the result.
+ * Requires an `X-Store-Id`-bound client. Rate limit: 8 requests per minute. Returns 204.
+ *
+ * @see https://connect.tryotter.com/docs/api-reference/reference/post-pause-store-event-result/
+ */
+export async function notifyOtterPauseResult(client: AxiosInstance, eventId: string, request: OtterStoreEventResultRequest): Promise<void> {
+  await client.post('/v1/storefront/pause', request, { headers: { 'X-Event-Id': eventId } });
+}
+
+/**
+ * Unpause counterpart of {@link notifyOtterPauseResult}.
+ * Requires an `X-Store-Id`-bound client. Rate limit: 8 requests per minute. Returns 204.
+ *
+ * @see https://connect.tryotter.com/docs/api-reference/reference/post-unpause-store-event-result/
+ */
+export async function notifyOtterUnpauseResult(client: AxiosInstance, eventId: string, request: OtterStoreEventResultRequest): Promise<void> {
+  await client.post('/v1/storefront/unpause', request, { headers: { 'X-Event-Id': eventId } });
+}
+
+/** A menu upsert payload can run to megabytes; cap what a single failure puts in the log. */
+const MAX_LOGGED_REQUEST_BODY_LENGTH = 2000;
+
 function enrichOtterError(error: unknown): Error {
   if (axios.isAxiosError(error)) {
-    return new Error(`Otter API error: ${error.response?.status} | URL: ${error.config?.url} | Body: ${JSON.stringify(error.response?.data)}`);
+    return new Error(
+      `Otter API error: ${error.response?.status} | URL: ${error.config?.url} | Sent: ${summarizeRequestBody(error.config?.data)} | Body: ${JSON.stringify(
+        error.response?.data,
+      )}`,
+    );
   }
   return error instanceof Error ? error : new Error(String(error));
+}
+
+/**
+ * The request body as it actually went over the wire. Axios has already run `transformRequest` by
+ * the time an error reaches the response interceptor, so `config.data` is normally the serialized
+ * string — which is the point: it distinguishes "we sent the wrong shape" from "we sent nothing".
+ *
+ * Safe to log: Otter carries auth in headers, and the only credential-bearing call
+ * ({@link fetchOtterToken}) uses a different client that never reaches this handler.
+ */
+function summarizeRequestBody(data: unknown): string {
+  if (data === undefined || data === null) {
+    return '<empty>';
+  }
+  const serialized = typeof data === 'string' ? data : JSON.stringify(data);
+  return serialized.length > MAX_LOGGED_REQUEST_BODY_LENGTH ? `${serialized.slice(0, MAX_LOGGED_REQUEST_BODY_LENGTH)}...<truncated>` : serialized;
 }
 
 function sleep(ms: number): Promise<void> {

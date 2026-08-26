@@ -39,6 +39,10 @@ class RestaurantHoursService implements RestaurantHoursServiceInterface {
     }
   };
 
+  findRestaurantHoursByRestaurantID = async (restaurantID: number, repository?: EntityManager): Promise<RestaurantHoursEntity[]> => {
+    return await this.restaurantHoursModel.getRestaurantHoursByRestaurantID(restaurantID, repository);
+  };
+
   removeRestaurantHours = async (restaurantID: number, repository?: EntityManager): Promise<void> => {
     try {
       if (!repository) {

@@ -121,6 +121,22 @@ describe('createOtterClient', () => {
     expect(calls).toBe(1);
   });
 
+  // The request body is what distinguishes "we sent the wrong shape" from "we sent nothing" when
+  // Otter rejects a call for a field it claims is null.
+  it('includes the request body it sent in the enriched error', async () => {
+    const client = createOtterClient({ authService });
+    client.defaults.adapter = async config => Promise.reject(axiosError(400, config));
+
+    await expect(client.post('/v1/storefront/availability', { storeState: 'PAUSED' })).rejects.toThrow(/Sent: .*"storeState":"PAUSED"/);
+  });
+
+  it('reports an absent request body as empty rather than omitting it', async () => {
+    const client = createOtterClient({ authService });
+    client.defaults.adapter = async config => Promise.reject(axiosError(400, config));
+
+    await expect(client.get('/v1/menus')).rejects.toThrow(/Sent: <empty>/);
+  });
+
   it('re-acquires the app token once on a 401 and retries', async () => {
     const client = createOtterClient({ authService, retry: { maxRetries: 3, baseBackoffMs: 0 } });
     let calls = 0;

@@ -99,6 +99,7 @@ import CheckmateIntegrationService from '@services/checkmateIntegration.service'
 import OtterOrganizationService from '@services/otterOrganization.service';
 import OtterAuthService from '@services/otterAuth.service';
 import OtterIntegrationService from '@services/otterIntegration.service';
+import OtterStorefrontService from '@services/otterStorefront.service';
 import CountryService from '@services/country.service';
 import CuisinesService from '@services/cuisines.service';
 import DietaryRestrictionsService from '@services/dietaryRestrictions.service';
@@ -441,8 +442,6 @@ const modifierService = new ModifierService(modifierModel);
 const packageService = new PackageService(managerPackageService, packagePermissionsService, restaurantPackageService, subscriptionItemService);
 const announcementsService = new AnnouncementsService(announcementImagesService, restaurantAddressService, announcementsModel);
 const managersService = new ManagersService(managersModel, titlesModel, restaurantsService);
-// TODO: Refactor services out of model - https://app.zenhub.com/workspaces/backend-team-611137d8564cb60012889e45/issues/gh/taptabapp/super-backend/139
-// leaving model inline until refactor (gross I know)
 const menuModel = new MenusModel(menuHoursService, menuSectionsService, menuDisclaimersService, softDeleteService);
 const menusService = new MenusService(menuModel, menuHoursService, menuSectionsService, menuItemService, menuDisclaimersService);
 export const menuDetailsService = new MenuDetailsService(
@@ -462,6 +461,14 @@ export const checkmateIntegrationService = new CheckmateIntegrationService(
 
 const otterOrganizationService = new OtterOrganizationService();
 const otterAuthService = new OtterAuthService(platformIntegrationService);
+// Must precede otterIntegrationService: the webhook ingress routes `storefront.*` events into it.
+const otterStorefrontService = new OtterStorefrontService(
+  platformIntegrationService,
+  restaurantsService,
+  restaurantHoursService,
+  restaurantAddressService,
+  otterAuthService,
+);
 export const otterIntegrationService = new OtterIntegrationService(
   platformIntegrationService,
   restaurantsService,
@@ -473,6 +480,7 @@ export const otterIntegrationService = new OtterIntegrationService(
   menuModel,
   menuHoursService,
   modifierGroupModel,
+  otterStorefrontService,
 );
 
 const restaurantBackupService = new RestaurantBackupService(menusService, restaurantsModel);
@@ -507,7 +515,7 @@ const eventRequestsController = new EventRequestsController(eventRequestsService
 const eventSettingsController = new EventSettingsController(eventSettingsService);
 const eventMediaController = new EventMediaController(eventMediaService);
 const checkmateIntegrationController = new CheckmateIntegrationController(checkmateIntegrationService);
-const otterIntegrationController = new OtterIntegrationController(otterIntegrationService);
+const otterIntegrationController = new OtterIntegrationController(otterIntegrationService, otterStorefrontService);
 const cuisinesController = new CuisinesController(cuisinesService);
 const dietaryRestrictionsController = new DietaryRestrictionsController(dietaryRestrictionsService);
 const discoveryContentController = new DiscoveryContentController(discoveryContentService);

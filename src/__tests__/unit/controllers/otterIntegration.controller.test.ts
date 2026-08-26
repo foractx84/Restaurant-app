@@ -1,6 +1,7 @@
 import OtterIntegrationController from '@/controllers/otterIntegration.controller';
 import { OTTER } from '@configs/config';
 import { OtterIntegrationServiceInterface } from '@interfaces/otterIntegration.interface';
+import { OtterStorefrontServiceInterface } from '@interfaces/otterStorefrontService.interface';
 import { computeOtterWebhookHmac } from '@utils/otterWebhookAuth.util';
 import { logger } from '@utils/logger';
 import { Request, Response } from 'express';
@@ -26,13 +27,19 @@ describe('OtterIntegrationController', () => {
     pushMenuToOtter: jest.fn(),
   };
 
+  const mockStorefrontService: OtterStorefrontServiceInterface = {
+    setAvailabilityFromPartner: jest.fn(),
+    getStorefrontStatus: jest.fn(),
+    handleStorefrontEvent: jest.fn(),
+  };
+
   let controller: OtterIntegrationController;
   let mReq: Partial<Request>;
   let mRes: Partial<Response>;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    controller = new OtterIntegrationController(mockService);
+    controller = new OtterIntegrationController(mockService, mockStorefrontService);
     mRes = {
       status: jest.fn().mockReturnThis(),
       end: jest.fn(),

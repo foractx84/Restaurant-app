@@ -38,6 +38,9 @@ export interface OtterIntegrationControllerInterface {
   oAuthCallback: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   triggerMenuSync: (req: Request, res: Response, next: NextFunction) => Promise<void>;
   pushMenu: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+  getStorefrontStatus: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+  pauseStorefront: (req: Request, res: Response, next: NextFunction) => Promise<void>;
+  unpauseStorefront: (req: Request, res: Response, next: NextFunction) => Promise<void>;
 }
 
 /** Result of pushing a restaurant's menu to Otter — `POST /v1/menus` returns immediately with a `PENDING` job. */

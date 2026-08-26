@@ -1,4 +1,5 @@
 import { OtterWebhookEvent } from '@interfaces/otterIntegration.interface';
+import { OTTER_STOREFRONT_EVENT_PREFIX } from '@constants/otterStorefront.constants';
 
 /**
  * Otter's real webhook event catalog isn't documented anywhere in this codebase beyond the OAuth
@@ -21,3 +22,14 @@ const MENU_UPDATE_EVENT_PREFIX = 'menus.';
  */
 export const isOtterMenuUpdateEvent = (event: Pick<OtterWebhookEvent, 'eventType'> | null | undefined): boolean =>
   typeof event?.eventType === 'string' && event.eventType.startsWith(MENU_UPDATE_EVENT_PREFIX);
+
+/**
+ * True when `event.eventType` is a Storefront event — the pause/unpause requests and the
+ * availability/hours queries that Otter certification requires us to answer.
+ *
+ * Prefix-matched for the same reason as {@link isOtterMenuUpdateEvent}: new `storefront.*` subtypes
+ * route here without a code change, and `OtterStorefrontService.handleStorefrontEvent` logs any
+ * subtype it doesn't recognise. Tolerant of a missing/malformed `eventType`.
+ */
+export const isOtterStorefrontEvent = (event: Pick<OtterWebhookEvent, 'eventType'> | null | undefined): boolean =>
+  typeof event?.eventType === 'string' && event.eventType.startsWith(OTTER_STOREFRONT_EVENT_PREFIX);

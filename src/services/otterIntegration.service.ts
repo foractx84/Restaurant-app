@@ -21,7 +21,8 @@ import { MenusModelsInterface, MenusServiceInterface } from '@interfaces/menus.i
 import { MenuHoursServiceInterface } from '@interfaces/menuHours.interface';
 import { ModifierGroupModelInterface } from '@interfaces/modifierGroup.interface';
 import { mapOtterOrgStoreToRestaurant, validateOtterOrgStore } from '@utils/otterStore.mapper';
-import { isOtterMenuUpdateEvent } from '@utils/otterWebhookEvent.util';
+import { isOtterMenuUpdateEvent, isOtterStorefrontEvent } from '@utils/otterWebhookEvent.util';
+import { OtterStorefrontServiceInterface } from '@interfaces/otterStorefrontService.interface';
 import { normalizeOtterMenus, stringifyNormalizedMenus } from '@utils/normalize';
 import { buildOtterMenusUpsertRequest, OtterMenuPushInput, OtterModifierGroupSelectionRules } from '@utils/denormalizeOtterMenu';
 import { generateHash } from '@utils/hashUtils';
@@ -60,6 +61,7 @@ class OtterIntegrationService implements OtterIntegrationServiceInterface {
     private readonly menusModel: MenusModelsInterface,
     private readonly menuHoursService: MenuHoursServiceInterface,
     private readonly modifierGroupModel: ModifierGroupModelInterface,
+    private readonly otterStorefrontService: OtterStorefrontServiceInterface,
   ) {}
 
   private get boss(): PgBoss {
@@ -90,6 +92,11 @@ class OtterIntegrationService implements OtterIntegrationServiceInterface {
 
     if (!eventType) {
       logger.warn(`Received Otter webhook with no eventType (eventId=${eventId}); acknowledged only.`);
+      return;
+    }
+
+    if (isOtterStorefrontEvent(event)) {
+      await this.otterStorefrontService.handleStorefrontEvent(event);
       return;
     }
 

@@ -306,6 +306,24 @@ class RestaurantsService implements RestaurantsServiceInterface {
     }
   };
 
+  /**
+   * Reads the storefront availability flag (`false` == paused). Throws 404 when the restaurant does
+   * not exist, so an Otter webhook naming an unknown store surfaces as a real error rather than
+   * silently reporting the store as paused.
+   */
+  findRestaurantAcceptingOrders = async (restaurantID: number): Promise<boolean> => {
+    const isAcceptingOrders = await this.restaurantsModel.getRestaurantAcceptingOrdersByID(restaurantID);
+    if (isAcceptingOrders === null) {
+      throw new HttpException(404, getErrorPayload(InternalErrorCode.inputValueNotInDB, `Restaurant ${restaurantID} does not exist.`));
+    }
+    return isAcceptingOrders;
+  };
+
+  /** Sets the storefront availability flag (`false` == paused). */
+  setRestaurantAcceptingOrders = async (restaurantID: number, isAcceptingOrders: boolean): Promise<void> => {
+    await this.restaurantsModel.updateRestaurantAcceptingOrders(restaurantID, isAcceptingOrders);
+  };
+
   findRestaurantEntityByIDAndLocationID = async (restaurantID: number, locationID: number, manager?: EntityManager): Promise<RestaurantEntity> => {
     try {
       return await this.restaurantsModel.getRestaurantEntityByIDAndLocationID(restaurantID, locationID, manager);
